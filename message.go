@@ -1,8 +1,8 @@
 package femebe
 
 import (
-	"fmt"
 	"bytes"
+	"fmt"
 )
 
 type Message struct {
@@ -25,9 +25,9 @@ func IsAuthenticationOk(msg *Message) bool {
 // TODO: all the other auth types
 
 const (
-	RFQ_IDLE = 'I'
+	RFQ_IDLE     = 'I'
 	RFQ_IN_TRANS = 'T'
-	RFQ_ERROR = 'E'
+	RFQ_ERROR    = 'E'
 )
 
 type ConnStatus byte
@@ -44,18 +44,18 @@ func IsReadyForQuery(msg *Message) bool {
 }
 
 type FieldDescription struct {
-	name string
-	tableOid int32
+	name       string
+	tableOid   int32
 	tableAttNo int16
-	typeOid int32
-	typLen int16
-	atttypmod int32
-	format int16
+	typeOid    int32
+	typLen     int16
+	atttypmod  int32
+	format     int16
 }
 
 const (
-	ENC_FMT_TEXT = 0
-	ENC_FMT_BINARY = 1
+	ENC_FMT_TEXT    = 0
+	ENC_FMT_BINARY  = 1
 	ENC_FMT_UNKNOWN = 0
 )
 
@@ -73,28 +73,28 @@ const (
 
 type PGType int16
 
-func NewField(name string, dataType PGType) (*FieldDescription) {
+func NewField(name string, dataType PGType) *FieldDescription {
 	switch dataType {
 	case INT16:
-	 	return &FieldDescription{name, 0, 0, 21, 2, -1, ENC_FMT_TEXT}
+		return &FieldDescription{name, 0, 0, 21, 2, -1, ENC_FMT_TEXT}
 	case INT32:
-	 	return &FieldDescription{name, 0, 0, 23, 4, -1, ENC_FMT_TEXT}
+		return &FieldDescription{name, 0, 0, 23, 4, -1, ENC_FMT_TEXT}
 	case INT64:
-	 	return &FieldDescription{name, 0, 0, 20, 8, -1, ENC_FMT_TEXT}
+		return &FieldDescription{name, 0, 0, 20, 8, -1, ENC_FMT_TEXT}
 	case FLOAT32:
-	 	return &FieldDescription{name, 0, 0, 700, 4, -1, ENC_FMT_TEXT}
+		return &FieldDescription{name, 0, 0, 700, 4, -1, ENC_FMT_TEXT}
 	case FLOAT64:
-	 	return &FieldDescription{name, 0, 0, 701, 8, -1, ENC_FMT_TEXT}
+		return &FieldDescription{name, 0, 0, 701, 8, -1, ENC_FMT_TEXT}
 	case STRING:
-	 	return &FieldDescription{name, 0, 0, 25, -1, -1, ENC_FMT_TEXT}
+		return &FieldDescription{name, 0, 0, 25, -1, -1, ENC_FMT_TEXT}
 	case BOOL:
-	 	return &FieldDescription{name, 0, 0, 16, 1, -1, ENC_FMT_TEXT}
+		return &FieldDescription{name, 0, 0, 16, 1, -1, ENC_FMT_TEXT}
 	}
 	panic("Oh snap")
 }
 
 func NewRowDescription(fields []FieldDescription) *Message {
-	msgBytes := make([]byte, 0, len(fields) * (10 + 4 + 2 + 4 + 2 + 4 + 2))
+	msgBytes := make([]byte, 0, len(fields)*(10+4+2+4+2+4+2))
 	buff := bytes.NewBuffer(msgBytes)
 	WriteInt16(buff, int16(len(fields)))
 	for _, field := range fields {
@@ -110,7 +110,7 @@ func NewRowDescription(fields []FieldDescription) *Message {
 }
 
 func NewDataRow(cols []interface{}) *Message {
-	msgBytes := make([]byte, 0, 2 + len(cols) * 4)
+	msgBytes := make([]byte, 0, 2+len(cols)*4)
 	buff := bytes.NewBuffer(msgBytes)
 	colCount := int16(len(cols))
 	WriteInt16(buff, colCount)
@@ -158,7 +158,7 @@ func encodeValue(buff *bytes.Buffer, val interface{}, format EncFmt) {
 }
 
 type RowDescription struct {
-	fields[] FieldDescription
+	fields []FieldDescription
 }
 
 func ReadRowDescription(msg *Message) *RowDescription {
@@ -183,7 +183,7 @@ func ReadRowDescription(msg *Message) *RowDescription {
 }
 
 type StartupMessage struct {
-	params map[string]string	
+	params map[string]string
 }
 
 func ReadStartupMessage(msg *Message) *StartupMessage {

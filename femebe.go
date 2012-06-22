@@ -11,7 +11,7 @@ type MessageStream interface {
 }
 
 func NewMessageStream(name string, r io.Reader, w io.Writer) MessageStream {
-	return &ctxt{Name: name, r: r,  w: w, state: CONN_BEGIN}
+	return &ctxt{Name: name, r: r, w: w, state: CONN_BEGIN}
 }
 
 type ConnState int32
@@ -23,9 +23,9 @@ const (
 )
 
 type ctxt struct {
-	Name string
-	r io.Reader
-	w io.Writer
+	Name  string
+	r     io.Reader
+	w     io.Writer
 	state ConnState
 }
 
@@ -90,4 +90,3 @@ func (c *ctxt) Send(m *Message) (err error) {
 	}
 	return err
 }
-

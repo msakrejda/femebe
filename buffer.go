@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 )
 
-
-
 func WriteInt16(b *bytes.Buffer, val int16) {
 	valBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(valBytes, uint16(val))
@@ -19,7 +17,7 @@ func WriteInt32(b *bytes.Buffer, val int32) {
 	b.Write(valBytes)
 }
 
-func WriteCString(b *bytes.Buffer, val string) { 
+func WriteCString(b *bytes.Buffer, val string) {
 	b.WriteString(val)
 	b.WriteByte('\000')
 }
@@ -51,5 +49,5 @@ func ReadUInt32(b *bytes.Buffer) uint32 {
 func ReadCString(b *bytes.Buffer) string {
 	line, _ := b.ReadBytes('\000')
 	lineLen := len(line)
-	return string(line[0:lineLen-1])
+	return string(line[0 : lineLen-1])
 }
