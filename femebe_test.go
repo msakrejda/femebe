@@ -1,4 +1,4 @@
-package x
+package femebe
 
 import (
 	"fmt"
@@ -104,11 +104,9 @@ func handleConnection3(conn net.Conn) {
 	end := make(chan error)
 	go server2client(c, s, end)
 	go client2server(c, s, end)
-	_ = <- end
-	_ = <- end
+	_ = <-end
+	_ = <-end
 }
-
-
 
 func server2client2(client MessageStream, server MessageStream, errch chan error) {
 	for {
@@ -151,7 +149,6 @@ func client2server2(client MessageStream, server MessageStream, errch chan error
 	}
 }
 
-
 func handleConnection(conn net.Conn) {
 	fmt.Println("processing request")
 
@@ -165,7 +162,7 @@ func handleConnection(conn net.Conn) {
 	msg, _ := c.Next()
 	// Sanity-check the startup message by reading it
 	ReadStartupMessage(msg)
-	
+
 	sConn1, messages1, _ := try("localhost:5435", msg)
 	sConn2, messages2, _ := try("localhost:5434", msg)
 
@@ -189,8 +186,8 @@ func handleConnection(conn net.Conn) {
 	end := make(chan error)
 	go server2client2(c, s, end)
 	go client2server2(c, s, end)
-	_ = <- end
-	_ = <- end
+	_ = <-end
+	_ = <-end
 }
 
 func try(connstr string, authMsg *Message) (stream MessageStream, messages []*Message, err error) {
