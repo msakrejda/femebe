@@ -29,46 +29,22 @@ func autoDial(place string) (net.Conn, error) {
 	return net.Dial("tcp", place)
 }
 
-type handlerFunc func(
-	client femebe.MessageStream,
-	server femebe.MessageStream,
-	errch chan error)
-
-type proxyBehavior struct {
-	toFrontend handlerFunc
-	toServer   handlerFunc
+type session struct {
+	ingress func()
+	egress  func()
 }
 
-func (pbh *proxyBehavior) start(
-	client femebe.MessageStream,
-	server femebe.MessageStream) (errch chan error) {
-
-	errch = make(chan error)
-
-	go pbh.toFrontend(client, server, errch)
-	go pbh.toServer(client, server, errch)
-	return errch
+func (s *session) start() {
+	go s.ingress()
+	go s.egress()
 }
 
-var simpleProxy = proxyBehavior{
-	toFrontend: func(client femebe.MessageStream,
-		server femebe.MessageStream, errch chan error) {
-		for {
-			msg, err := server.Next()
-			if err != nil {
-				errch <- err
-				return
-			}
+func NewSimpleProxySession(
+	errch chan error,
+	client femebe.MessageStream,
+	server femebe.MessageStream) *session {
 
-			err = client.Send(msg)
-			if err != nil {
-				errch <- err
-				return
-			}
-		}
-	},
-	toServer: func(client femebe.MessageStream,
-		server femebe.MessageStream, errch chan error) {
+	ingress := func() {
 		for {
 			msg, err := client.Next()
 			if err != nil {
@@ -82,15 +58,32 @@ var simpleProxy = proxyBehavior{
 				return
 			}
 		}
-	},
+	}
+
+	egress := func() {
+		for {
+			msg, err := server.Next()
+			if err != nil {
+				errch <- err
+				return
+			}
+
+			err = client.Send(msg)
+			if err != nil {
+				errch <- err
+				return
+			}
+		}
+	}
+
+	return &session{ingress: ingress, egress: egress}
 }
 
 // Generic connection handler
 //
 // This redelegates to more specific proxy handlers that contain the
 // main proxy loop logic.
-func handleConnection(proxy proxyBehavior,
-	clientConn net.Conn, serverAddr string) {
+func handleConnection(clientConn net.Conn, serverAddr string) {
 	var err error
 
 	// Log disconnections
@@ -111,9 +104,10 @@ func handleConnection(proxy proxyBehavior,
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
 
-	b := femebe.NewMessageStream("Server", serverConn, serverConn)
+	s := femebe.NewMessageStream("Server", serverConn, serverConn)
 
-	done := proxy.start(c, b)
+	done := make(chan error)
+	NewSimpleProxySession(done, c, s).start()
 	err = <-done
 }
 
@@ -138,7 +132,7 @@ func main() {
 			continue
 		}
 
-		go handleConnection(simpleProxy, conn, os.Args[2])
+		go handleConnection(conn, os.Args[2])
 	}
 
 	fmt.Println("simpleproxy quits successfully")
