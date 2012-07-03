@@ -24,13 +24,13 @@ func IsAuthenticationOk(msg *Message) bool {
 
 // TODO: all the other auth types
 
-const (
-	RFQ_IDLE     = 'I'
-	RFQ_IN_TRANS = 'T'
-	RFQ_ERROR    = 'E'
-)
-
 type ConnStatus byte
+
+const (
+	RFQ_IDLE     ConnStatus = 'I'
+	RFQ_IN_TRANS            = 'T'
+	RFQ_ERROR               = 'E'
+)
 
 func NewReadyForQuery(connState ConnStatus) (*Message, error) {
 	if connState != RFQ_IDLE && connState != RFQ_IN_TRANS && connState != RFQ_ERROR {
@@ -50,19 +50,21 @@ type FieldDescription struct {
 	typeOid    int32
 	typLen     int16
 	atttypmod  int32
-	format     int16
+	format     EncFmt
 }
-
-const (
-	ENC_FMT_TEXT    = 0
-	ENC_FMT_BINARY  = 1
-	ENC_FMT_UNKNOWN = 0
-)
 
 type EncFmt int16
 
 const (
-	INT16 = iota
+	ENC_FMT_TEXT    EncFmt = 0
+	ENC_FMT_BINARY         = 1
+	ENC_FMT_UNKNOWN        = 0
+)
+
+type PGType int16
+
+const (
+	INT16 PGType = iota
 	INT32
 	INT64
 	FLOAT32
@@ -70,8 +72,6 @@ const (
 	STRING
 	BOOL
 )
-
-type PGType int16
 
 func NewField(name string, dataType PGType) *FieldDescription {
 	switch dataType {
@@ -104,7 +104,7 @@ func NewRowDescription(fields []FieldDescription) *Message {
 		WriteInt32(buff, field.typeOid)
 		WriteInt16(buff, field.typLen)
 		WriteInt32(buff, field.atttypmod)
-		WriteInt16(buff, field.format)
+		WriteInt16(buff, int16(field.format))
 	}
 	return &Message{'T', buff.Bytes()}
 }
@@ -177,7 +177,7 @@ func ReadRowDescription(msg *Message) *RowDescription {
 		atttypmod := ReadInt32(b)
 		format := ReadInt16(b)
 		fields[i] = FieldDescription{name, tableOid, tableAttNo,
-			typeOid, typLen, atttypmod, format}
+			typeOid, typLen, atttypmod, EncFmt(format)}
 	}
 	return &RowDescription{fields}
 }
