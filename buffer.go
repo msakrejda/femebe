@@ -1,15 +1,10 @@
 package femebe
 
 import (
+	"bytes"
 	"encoding/binary"
 	"io"
 )
-
-// ReadBytes() is defined in a couple of go packages (bufio, bytes)
-// but not reified into an interface, so do that here.
-type ReadByteser interface {
-	ReadBytes(delim byte) (line []byte, err error)
-}
 
 func WriteInt16(w io.Writer, val int16) {
 	valBytes := make([]byte, 2)
@@ -52,8 +47,30 @@ func ReadUInt32(r io.Reader) uint32 {
 	return uint32(binary.BigEndian.Uint32(valBytes))
 }
 
-func ReadCString(r ReadByteser) string {
-	line, _ := r.ReadBytes('\000')
-	lineLen := len(line)
-	return string(line[0 : lineLen-1])
+func ReadCString(r io.Reader) (s string, err error) {
+	var accum bytes.Buffer
+	charBuf := make([]byte, 1)
+
+	for {
+		n, err := r.Read(charBuf)
+
+		if err != nil {
+			return "", err
+		}
+
+		// Handle the case of no error, yet no bytes were
+		// retrieved.
+		if n < 1 {
+			continue
+		}
+
+		switch charBuf[0] {
+		case '\000':
+			return string(accum.Bytes()), nil
+		default:
+			accum.Write(charBuf)
+		}
+	}
+
+	panic("Oh snap")
 }
