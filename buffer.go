@@ -6,25 +6,27 @@ import (
 	"io"
 )
 
-func WriteInt16(w io.Writer, val int16) (n int, err error) {
-	valBytes := make([]byte, 2)
+type binEnc [4]byte
+
+func (be *binEnc) WriteInt16(w io.Writer, val int16) (n int, err error) {
+	valBytes := be[0:2]
 	binary.BigEndian.PutUint16(valBytes, uint16(val))
 	return w.Write(valBytes)
 }
 
-func WriteInt32(w io.Writer, val int32) (n int, err error) {
-	valBytes := make([]byte, 4)
+func (be *binEnc) WriteInt32(w io.Writer, val int32) (n int, err error) {
+	valBytes := be[0:4]
 	binary.BigEndian.PutUint32(valBytes, uint32(val))
 
 	return w.Write(valBytes)
 }
 
-func WriteCString(w io.Writer, val string) (n int, err error) {
+func (be *binEnc) WriteCString(w io.Writer, val string) (n int, err error) {
 	return w.Write([]byte{'\000'})
 }
 
-func ReadInt16(r io.Reader) (int16, error) {
-	valBytes := make([]byte, 2)
+func (be *binEnc) ReadInt16(r io.Reader) (int16, error) {
+	valBytes := be[0:2]
 	if _, err := io.ReadFull(r, valBytes); err != nil {
 		return 0, err
 	}
@@ -32,8 +34,8 @@ func ReadInt16(r io.Reader) (int16, error) {
 	return int16(binary.BigEndian.Uint16(valBytes)), nil
 }
 
-func ReadUInt16(r io.Reader) (uint16, error) {
-	valBytes := make([]byte, 2)
+func (be *binEnc) ReadUInt16(r io.Reader) (uint16, error) {
+	valBytes := be[0:2]
 	if _, err := io.ReadFull(r, valBytes); err != nil {
 		return 0, err
 	}
@@ -41,8 +43,8 @@ func ReadUInt16(r io.Reader) (uint16, error) {
 	return uint16(binary.BigEndian.Uint16(valBytes)), nil
 }
 
-func ReadInt32(r io.Reader) (int32, error) {
-	valBytes := make([]byte, 4)
+func (be *binEnc) ReadInt32(r io.Reader) (int32, error) {
+	valBytes := be[0:4]
 	if _, err := io.ReadFull(r, valBytes); err != nil {
 		return 0, err
 	}
@@ -50,8 +52,8 @@ func ReadInt32(r io.Reader) (int32, error) {
 	return int32(binary.BigEndian.Uint32(valBytes)), nil
 }
 
-func ReadUInt32(r io.Reader) (ret uint32, err error) {
-	valBytes := make([]byte, 4)
+func (be *binEnc) ReadUInt32(r io.Reader) (ret uint32, err error) {
+	valBytes := be[0:4]
 	if _, err = io.ReadFull(r, valBytes); err != nil {
 		return 0, err
 	}
@@ -59,9 +61,9 @@ func ReadUInt32(r io.Reader) (ret uint32, err error) {
 	return binary.BigEndian.Uint32(valBytes), nil
 }
 
-func ReadCString(r io.Reader) (s string, err error) {
+func (be *binEnc) ReadCString(r io.Reader) (s string, err error) {
 	var accum bytes.Buffer
-	charBuf := make([]byte, 1)
+	charBuf := be[0:1]
 
 	for {
 		n, err := r.Read(charBuf)
@@ -87,8 +89,8 @@ func ReadCString(r io.Reader) (s string, err error) {
 	panic("Oh snap")
 }
 
-func ReadByte(r io.Reader) (ret byte, err error) {
-	valBytes := make([]byte, 1)
+func (be *binEnc) ReadByte(r io.Reader) (ret byte, err error) {
+	valBytes := be[0:1]
 	if _, err = io.ReadFull(r, valBytes); err != nil {
 		return 0, err
 	}

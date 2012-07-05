@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"bufio"
 )
 
 // Automatically chooses between unix sockets and tcp sockets for
@@ -41,37 +42,49 @@ func (s *session) start() {
 
 func NewSimpleProxySession(
 	errch chan error,
-	client femebe.MessageStream,
-	server femebe.MessageStream) *session {
+	client *femebe.MessageStream,
+	server *femebe.MessageStream) *session {
 
 	ingress := func() {
+		var m femebe.Message
+
 		for {
-			msg, err := client.Next()
+			err := client.Next(&m)
 			if err != nil {
 				errch <- err
 				return
 			}
 
-			err = server.Send(msg)
+			err = server.Send(&m)
 			if err != nil {
 				errch <- err
 				return
+			}
+
+			if !client.HasNext() {
+				server.Flush()
 			}
 		}
 	}
 
 	egress := func() {
 		for {
-			msg, err := server.Next()
+			var m femebe.Message
+
+			err := server.Next(&m)
 			if err != nil {
 				errch <- err
 				return
 			}
 
-			err = client.Send(msg)
+			err = client.Send(&m)
 			if err != nil {
 				errch <- err
 				return
+			}
+
+			if !server.HasNext() {
+				client.Flush()
 			}
 		}
 	}
@@ -97,14 +110,16 @@ func handleConnection(clientConn net.Conn, serverAddr string) {
 
 	defer clientConn.Close()
 
-	c := femebe.NewMessageStreamIngress("Client", clientConn, clientConn)
+	c := femebe.NewMessageStreamIngress("Client", clientConn,
+		bufio.NewWriter(clientConn))
 
 	serverConn, err := autoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
 
-	s := femebe.NewMessageStreamEgress("Server", serverConn, serverConn)
+	s := femebe.NewMessageStreamEgress("Server", serverConn,
+		bufio.NewWriter(serverConn))
 
 	done := make(chan error)
 	NewSimpleProxySession(done, c, s).start()
