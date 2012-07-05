@@ -200,7 +200,11 @@ func ReadRowDescription(msg Message) (rd *RowDescription, err error) {
 		panic("Oh snap")
 	}
 	b := msg.Payload()
-	fieldCount := ReadUInt16(b)
+	fieldCount, err := ReadUInt16(b)
+	if err != nil {
+		return nil, err
+	}
+
 	fields := make([]FieldDescription, fieldCount)
 	for i, _ := range fields {
 		name, err := ReadCString(b)
@@ -208,12 +212,31 @@ func ReadRowDescription(msg Message) (rd *RowDescription, err error) {
 			return nil, err
 		}
 
-		tableOid := ReadInt32(b)
-		tableAttNo := ReadInt16(b)
-		typeOid := ReadInt32(b)
-		typLen := ReadInt16(b)
-		atttypmod := ReadInt32(b)
-		format := ReadInt16(b)
+		tableOid, err := ReadInt32(b)
+		if err != nil {
+			return nil, err
+		}
+		tableAttNo, err := ReadInt16(b)
+		if err != nil {
+			return nil, err
+		}
+		typeOid, err := ReadInt32(b)
+		if err != nil {
+			return nil, err
+		}
+		typLen, err := ReadInt16(b)
+		if err != nil {
+			return nil, err
+		}
+		atttypmod, err := ReadInt32(b)
+		if err != nil {
+			return nil, err
+		}
+		format, err := ReadInt16(b)
+		if err != nil {
+			return nil, err
+		}
+
 		fields[i] = FieldDescription{name, tableOid, tableAttNo,
 			typeOid, typLen, atttypmod, EncFmt(format)}
 	}
@@ -231,7 +254,11 @@ func ReadStartupMessage(msg Message) (sm *StartupMessage, err error) {
 	}
 	msgLen := msg.Size()
 	b := msg.Payload()
-	protoVer := ReadInt32(b)
+	protoVer, err := ReadInt32(b)
+	if err != nil {
+		return nil, err
+	}
+
 	if protoVer != 0x00030000 {
 		panic("Oh snap! Unrecognized protocol version number")
 	}

@@ -2,6 +2,7 @@ package femebe
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 )
 
@@ -10,16 +11,30 @@ type MessageStream interface {
 	Next() (m Message, err error)
 }
 
-func NewMessageStream(name string, r io.Reader, w io.Writer) MessageStream {
-	return &ctxt{Name: name, r: r, w: w, state: CONN_BEGIN}
+// The minimum number of bytes required to make a new hybridMsg when
+// calling Next().  If buffering and less than MSG_HEADER_SIZE remain
+// in the buffer, the remaining bytes must be saved for the next
+// invocation of Next().
+const MSG_HEADER_MIN_SIZE = 5
+
+// Startup packets longer than this are considered invalid.  Copied
+// from the PostgreSQL source code.
+const MAX_STARTUP_PACKET_LENGTH = 10000
+
+func NewMessageStreamIngress(name string, r io.Reader, w io.Writer) MessageStream {
+	return &ctxt{Name: name, r: r, w: w, state: CONN_STARTUP}
+}
+
+func NewMessageStreamEgress(name string, r io.Reader, w io.Writer) MessageStream {
+	return &ctxt{Name: name, r: r, w: w, state: CONN_NORMAL}
 }
 
 type ConnState int32
 
 const (
-	CONN_BEGIN ConnState = iota
+	CONN_STARTUP ConnState = iota
+	CONN_NORMAL
 	CONN_ERR
-	CONN_CONNECTED
 )
 
 type ctxt struct {
@@ -30,61 +45,82 @@ type ctxt struct {
 }
 
 func (c *ctxt) Next() (msg Message, err error) {
-	// N.B.: We intend this to block before we check the state for
-	// very specific reasons: if Next() is called before Send() in
-	// "client" mode, and we want to acknowledge that transition
-	// before processing the message
-	msgHeader := make([]byte, 5)
-	var msgType byte
-	var payload []byte
-	var size uint32
-	_, err = io.ReadFull(c.r, msgHeader)
+	defer func() {
+		recovered := recover()
+		if e, ok := recovered.(error); ok {
+			msg = nil
+			err = e
+		} else if recovered != nil {
+			// This wasn't an error, so it may be a string
+			// suggesting something is *really* wrong
+			// (e.g. an assertion failure).  It probably
+			// says "Oh snap".
+			panic(recovered)
+		}
+	}()
 
-	if err != nil {
-		c.state = CONN_ERR
-		return nil, err
+	panicNonNil := func(err error) {
+		if err != nil {
+			panic(err)
+		}
 	}
 
-	if c.state == CONN_BEGIN {
-		msgType = '\000'
-		size = uint32(binary.BigEndian.Uint32(msgHeader[0:4])) - 4
-		payload = make([]byte, size)
-		payload[0] = msgHeader[4]
-		io.ReadFull(c.r, payload[1:])
+	switch c.state {
+	case CONN_STARTUP:
+		msgSz, err := ReadUInt32(c.r)
+		panicNonNil(err)
+		msgSz -= 4
 
-		c.state = CONN_CONNECTED
-	} else {
-		msgType = msgHeader[0]
-		size = uint32(binary.BigEndian.Uint32(msgHeader[1:])) - 4
-		payload = make([]byte, size)
-		io.ReadFull(c.r, payload)
-	}
-	if err != nil {
-		c.state = CONN_ERR
-		return nil, err
+		if msgSz > MAX_STARTUP_PACKET_LENGTH {
+			panic(errors.New("rejecting oversized startup packet"))
+		}
+
+		payload := make([]byte, msgSz)
+		_, err = io.ReadFull(c.r, payload)
+		panicNonNil(err)
+
+		c.state = CONN_NORMAL
+
+		return NewFullyBufferedMsg('\000', payload), nil
+
+	case CONN_NORMAL:
+		msgType, err := ReadByte(c.r)
+		panicNonNil(err)
+
+		msgSz, err := ReadUInt32(c.r)
+		panicNonNil(err)
+		msgSz -= 4
+
+		payload := make([]byte, msgSz)
+		_, err = io.ReadFull(c.r, payload)
+		panicNonNil(err)
+
+		return NewFullyBufferedMsg(msgType, payload), nil
+
+	case CONN_ERR:
+		return nil, errors.New("MessageStream in error state")
+
+	default:
+		panic("Oh snap")
 	}
 
-	return NewFullyBufferedMsg(msgType, payload), err
+	panic("Oh snap")
 }
 
-func (c *ctxt) Send(m Message) (err error) {
-	if c.state == CONN_BEGIN {
-		c.state = CONN_CONNECTED
-	}
-
-	if m.MsgType() != '\000' {
-		err = binary.Write(c.w, binary.BigEndian, m.MsgType())
+func (c *ctxt) Send(msg Message) (err error) {
+	if msg.MsgType() != '\000' {
+		err = binary.Write(c.w, binary.BigEndian, msg.MsgType())
 		if err != nil {
 			return err
 		}
 	}
 
-	err = binary.Write(c.w, binary.BigEndian, m.Size())
+	err = binary.Write(c.w, binary.BigEndian, msg.Size())
 	if err != nil {
 		return err
 	}
 
-	if _, err := io.Copy(c.w, m.Payload()); err != nil {
+	if _, err := io.Copy(c.w, msg.Payload()); err != nil {
 		return err
 	}
 

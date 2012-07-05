@@ -6,45 +6,57 @@ import (
 	"io"
 )
 
-func WriteInt16(w io.Writer, val int16) {
+func WriteInt16(w io.Writer, val int16) (n int, err error) {
 	valBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(valBytes, uint16(val))
-	w.Write(valBytes)
+	return w.Write(valBytes)
 }
 
-func WriteInt32(w io.Writer, val int32) {
+func WriteInt32(w io.Writer, val int32) (n int, err error) {
 	valBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(valBytes, uint32(val))
-	w.Write(valBytes)
+
+	return w.Write(valBytes)
 }
 
-func WriteCString(w io.Writer, val string) {
-	io.WriteString(w, val)
-	w.Write([]byte{'\000'})
+func WriteCString(w io.Writer, val string) (n int, err error) {
+	return w.Write([]byte{'\000'})
 }
 
-func ReadInt16(r io.Reader) int16 {
+func ReadInt16(r io.Reader) (int16, error) {
 	valBytes := make([]byte, 2)
-	r.Read(valBytes)
-	return int16(binary.BigEndian.Uint16(valBytes))
+	if _, err := io.ReadFull(r, valBytes); err != nil {
+		return 0, err
+	}
+
+	return int16(binary.BigEndian.Uint16(valBytes)), nil
 }
 
-func ReadUInt16(r io.Reader) uint16 {
+func ReadUInt16(r io.Reader) (uint16, error) {
 	valBytes := make([]byte, 2)
-	r.Read(valBytes)
-	return uint16(binary.BigEndian.Uint16(valBytes))
+	if _, err := io.ReadFull(r, valBytes); err != nil {
+		return 0, err
+	}
+
+	return uint16(binary.BigEndian.Uint16(valBytes)), nil
 }
 
-func ReadInt32(r io.Reader) int32 {
+func ReadInt32(r io.Reader) (int32, error) {
 	valBytes := make([]byte, 4)
-	r.Read(valBytes)
-	return int32(binary.BigEndian.Uint32(valBytes))
+	if _, err := io.ReadFull(r, valBytes); err != nil {
+		return 0, err
+	}
+
+	return int32(binary.BigEndian.Uint32(valBytes)), nil
 }
 
-func ReadUInt32(r io.Reader) uint32 {
+func ReadUInt32(r io.Reader) (ret uint32, err error) {
 	valBytes := make([]byte, 4)
-	r.Read(valBytes)
-	return uint32(binary.BigEndian.Uint32(valBytes))
+	if _, err = io.ReadFull(r, valBytes); err != nil {
+		return 0, err
+	}
+
+	return binary.BigEndian.Uint32(valBytes), nil
 }
 
 func ReadCString(r io.Reader) (s string, err error) {
@@ -73,4 +85,13 @@ func ReadCString(r io.Reader) (s string, err error) {
 	}
 
 	panic("Oh snap")
+}
+
+func ReadByte(r io.Reader) (ret byte, err error) {
+	valBytes := make([]byte, 1)
+	if _, err = io.ReadFull(r, valBytes); err != nil {
+		return 0, err
+	}
+
+	return valBytes[0], nil
 }

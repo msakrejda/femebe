@@ -97,14 +97,14 @@ func handleConnection(clientConn net.Conn, serverAddr string) {
 
 	defer clientConn.Close()
 
-	c := femebe.NewMessageStream("Client", clientConn, clientConn)
+	c := femebe.NewMessageStreamIngress("Client", clientConn, clientConn)
 
 	serverConn, err := autoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
 
-	s := femebe.NewMessageStream("Server", serverConn, serverConn)
+	s := femebe.NewMessageStreamEgress("Server", serverConn, serverConn)
 
 	done := make(chan error)
 	NewSimpleProxySession(done, c, s).start()
