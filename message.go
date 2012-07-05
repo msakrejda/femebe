@@ -3,23 +3,56 @@ package femebe
 import (
 	"bytes"
 	"fmt"
+	"io"
 )
 
-type Message struct {
+type Message interface {
+	MsgType() byte
+	Size() uint32
+	Payload() io.Reader
+}
+
+type hybridMsg struct {
+	// Constant-width header
 	msgType byte
-	payload []byte
+	sz      uint32
+
+	// Tracks the state of the Payload stream's progression
+	payloadReader io.Reader
+
+	// Message contents buffered in memory
+	buffered *bytes.Buffer
 }
 
-func NewAuthenticationOk() *Message {
-	return &Message{'R', []byte{0, 0, 0, 0}}
+func (m *hybridMsg) MsgType() byte {
+	return m.msgType
 }
 
-func IsAuthenticationOk(msg *Message) bool {
-	return msg.msgType == 'R' &&
-		msg.payload[0] == 0 &&
-		msg.payload[1] == 0 &&
-		msg.payload[2] == 0 &&
-		msg.payload[3] == 0
+func (m *hybridMsg) Payload() io.Reader {
+	return m.payloadReader
+}
+
+func (m *hybridMsg) Size() uint32 {
+	return m.sz
+}
+
+func NewFullyBufferedMsg(msgType byte, payload []byte) Message {
+	hm := hybridMsg{
+		msgType:  msgType,
+		sz:       uint32(4 + len(payload)),
+		buffered: bytes.NewBuffer(payload),
+	}
+
+	// In this degenerate case, the buffered data is *all* the
+	// data, so the payloadReader and buffered content are the
+	// same.
+	hm.payloadReader = hm.buffered
+
+	return &hm
+}
+
+func NewAuthenticationOk() Message {
+	return NewFullyBufferedMsg('R', []byte{0, 0, 0, 0})
 }
 
 // TODO: all the other auth types
@@ -32,15 +65,16 @@ const (
 	RFQ_ERROR               = 'E'
 )
 
-func NewReadyForQuery(connState ConnStatus) (*Message, error) {
+func NewReadyForQuery(connState ConnStatus) (Message, error) {
 	if connState != RFQ_IDLE && connState != RFQ_IN_TRANS && connState != RFQ_ERROR {
 		return nil, fmt.Errorf("Invalid message type %v", connState)
 	}
-	return &Message{'Z', []byte{byte(connState)}}, nil
+
+	return NewFullyBufferedMsg('Z', []byte{byte(connState)}), nil
 }
 
-func IsReadyForQuery(msg *Message) bool {
-	return msg.msgType == 'Z'
+func IsReadyForQuery(msg Message) bool {
+	return msg.MsgType() == 'Z'
 }
 
 type FieldDescription struct {
@@ -93,7 +127,7 @@ func NewField(name string, dataType PGType) *FieldDescription {
 	panic("Oh snap")
 }
 
-func NewRowDescription(fields []FieldDescription) *Message {
+func NewRowDescription(fields []FieldDescription) Message {
 	msgBytes := make([]byte, 0, len(fields)*(10+4+2+4+2+4+2))
 	buff := bytes.NewBuffer(msgBytes)
 	WriteInt16(buff, int16(len(fields)))
@@ -106,10 +140,10 @@ func NewRowDescription(fields []FieldDescription) *Message {
 		WriteInt32(buff, field.atttypmod)
 		WriteInt16(buff, int16(field.format))
 	}
-	return &Message{'T', buff.Bytes()}
+	return NewFullyBufferedMsg('T', buff.Bytes())
 }
 
-func NewDataRow(cols []interface{}) *Message {
+func NewDataRow(cols []interface{}) Message {
 	msgBytes := make([]byte, 0, 2+len(cols)*4)
 	buff := bytes.NewBuffer(msgBytes)
 	colCount := int16(len(cols))
@@ -119,21 +153,21 @@ func NewDataRow(cols []interface{}) *Message {
 		// TODO: allow format specification
 		encodeValue(buff, val, ENC_FMT_TEXT)
 	}
-	return &Message{'D', buff.Bytes()}
+	return NewFullyBufferedMsg('D', buff.Bytes())
 }
 
-func NewCommandComplete(cmdTag string) *Message {
+func NewCommandComplete(cmdTag string) Message {
 	msgBytes := make([]byte, 0, len([]byte(cmdTag)))
 	buff := bytes.NewBuffer(msgBytes)
 	WriteCString(buff, cmdTag)
-	return &Message{'C', buff.Bytes()}
+	return NewFullyBufferedMsg('C', buff.Bytes())
 }
 
-func NewQuery(query string) *Message {
+func NewQuery(query string) Message {
 	msgBytes := make([]byte, 0, len([]byte(query)))
 	buff := bytes.NewBuffer(msgBytes)
 	WriteCString(buff, query)
-	return &Message{'Q', buff.Bytes()}
+	return NewFullyBufferedMsg('Q', buff.Bytes())
 }
 
 func encodeValue(buff *bytes.Buffer, val interface{}, format EncFmt) {
@@ -161,15 +195,19 @@ type RowDescription struct {
 	fields []FieldDescription
 }
 
-func ReadRowDescription(msg *Message) *RowDescription {
-	if msg.msgType != 'T' {
+func ReadRowDescription(msg Message) (rd *RowDescription, err error) {
+	if msg.MsgType() != 'T' {
 		panic("Oh snap")
 	}
-	b := bytes.NewBuffer(msg.payload)
+	b := msg.Payload()
 	fieldCount := ReadUInt16(b)
 	fields := make([]FieldDescription, fieldCount)
 	for i, _ := range fields {
-		name := ReadCString(b)
+		name, err := ReadCString(b)
+		if err != nil {
+			return nil, err
+		}
+
 		tableOid := ReadInt32(b)
 		tableAttNo := ReadInt16(b)
 		typeOid := ReadInt32(b)
@@ -179,33 +217,48 @@ func ReadRowDescription(msg *Message) *RowDescription {
 		fields[i] = FieldDescription{name, tableOid, tableAttNo,
 			typeOid, typLen, atttypmod, EncFmt(format)}
 	}
-	return &RowDescription{fields}
+
+	return &RowDescription{fields}, nil
 }
 
 type StartupMessage struct {
 	params map[string]string
 }
 
-func ReadStartupMessage(msg *Message) *StartupMessage {
-	if msg.msgType != '\000' {
+func ReadStartupMessage(msg Message) (sm *StartupMessage, err error) {
+	if msg.MsgType() != '\000' {
 		panic("Oh snap")
 	}
-	msgLen := len(msg.payload)
-	b := bytes.NewBuffer(msg.payload)
+	msgLen := msg.Size()
+	b := msg.Payload()
 	protoVer := ReadInt32(b)
 	if protoVer != 0x00030000 {
 		panic("Oh snap! Unrecognized protocol version number")
 	}
 	params := make(map[string]string)
 	for remaining := msgLen - 4; remaining > 1; {
-		key := ReadCString(b)
-		val := ReadCString(b)
-		remaining -= len(key) + len(val) + 2 /* null bytes */
+		key, err := ReadCString(b)
+		if err != nil {
+			return nil, err
+		}
+
+		val, err := ReadCString(b)
+		if err != nil {
+			return nil, err
+		}
+
+		remaining -= uint32(len(key) + len(val) + 2) /* null bytes */
 		params[key] = val
 	}
-	terminator, _ := b.ReadByte()
-	if terminator != '\000' {
+
+	// Fidelity check on the startup packet, whereby the last byte
+	// must be a NUL.
+	chrBuf := make([]byte, 1)
+	_, err = io.ReadAtLeast(b, chrBuf, 1)
+
+	if chrBuf[0] != '\000' {
 		panic("Oh snap! WTF byte is this?")
 	}
-	return &StartupMessage{params}
+
+	return &StartupMessage{params}, nil
 }

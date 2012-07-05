@@ -6,8 +6,8 @@ import (
 )
 
 type MessageStream interface {
-	Send(m *Message) (err error)
-	Next() (m *Message, err error)
+	Send(m Message) (err error)
+	Next() (m Message, err error)
 }
 
 func NewMessageStream(name string, r io.Reader, w io.Writer) MessageStream {
@@ -29,7 +29,7 @@ type ctxt struct {
 	state ConnState
 }
 
-func (c *ctxt) Next() (msg *Message, err error) {
+func (c *ctxt) Next() (msg Message, err error) {
 	// N.B.: We intend this to block before we check the state for
 	// very specific reasons: if Next() is called before Send() in
 	// "client" mode, and we want to acknowledge that transition
@@ -64,29 +64,29 @@ func (c *ctxt) Next() (msg *Message, err error) {
 		return nil, err
 	}
 
-	return &Message{msgType: msgType, payload: payload}, err
+	return NewFullyBufferedMsg(msgType, payload), err
 }
 
-func (c *ctxt) Send(m *Message) (err error) {
+func (c *ctxt) Send(m Message) (err error) {
 	if c.state == CONN_BEGIN {
 		c.state = CONN_CONNECTED
 	}
-	msgLen := int32(4 + len(m.payload))
-	if m.msgType != '\000' {
-		err = binary.Write(c.w, binary.BigEndian, m.msgType)
+
+	if m.MsgType() != '\000' {
+		err = binary.Write(c.w, binary.BigEndian, m.MsgType())
 		if err != nil {
 			return err
 		}
 	}
 
-	err = binary.Write(c.w, binary.BigEndian, msgLen)
+	err = binary.Write(c.w, binary.BigEndian, m.Size())
 	if err != nil {
 		return err
 	}
-	// TODO: think about big writes
-	_, err = c.w.Write(m.payload)
-	if err != nil {
+
+	if _, err := io.Copy(c.w, m.Payload()); err != nil {
 		return err
 	}
+
 	return err
 }
