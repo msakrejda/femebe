@@ -2,7 +2,6 @@ package femebe
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"io"
 )
@@ -198,24 +197,7 @@ func (c *MessageStream) Next(dst *Message) (err error) {
 }
 
 func (c *MessageStream) Send(msg *Message) (err error) {
-	b := [4]byte{msg.MsgType()}
-
-	if msg.MsgType() != '\000' {
-		if _, err = c.w.Write(b[:1]); err != nil {
-			return err
-		}
-	}
-
-	bs := b[0:4]
-	binary.BigEndian.PutUint32(bs, msg.Size())
-	if _, err = c.w.Write(bs); err != nil {
-		return err
-	}
-
-	if _, err := io.Copy(c.w, msg.Payload()); err != nil {
-		return err
-	}
-
+	_, err = msg.WriteTo(c.w)
 	return err
 }
 

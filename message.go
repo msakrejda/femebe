@@ -2,6 +2,7 @@ package femebe
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 )
 
@@ -27,6 +28,35 @@ func (m *Message) Payload() io.Reader {
 
 func (m *Message) Size() uint32 {
 	return m.sz
+}
+
+func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
+	var totalN int64
+
+	// Write message type byte, with a special exception for
+	// startup messages.
+	if mt := m.MsgType(); mt != '\000' {
+		n, err := w.Write([]byte{mt})
+		totalN += int64(n)
+		if err != nil {
+			return totalN, err
+		}
+	}
+
+	// Write message size integer to the stream
+	var bufBack [4]byte
+	buf := bufBack[:]
+	binary.BigEndian.PutUint32(buf, m.Size())
+	nMsgSz, err := w.Write(buf)
+	totalN += int64(nMsgSz)
+	if err != nil {
+		return totalN, err
+	}
+
+	// Write the actual payload
+	nPayload, err := io.Copy(w, m.Payload())
+	totalN += nPayload
+	return totalN, err
 }
 
 func InitFullyBufferedMsg(dst *Message, msgType byte, size uint32) {
@@ -217,4 +247,8 @@ func (be *binEnc) ReadStartupMessage(msg Message) (
 	}
 
 	return &StartupMessage{params}, nil
+}
+
+func InitAuthenticationOk(dst *Message) {
+	InitMsgFromBytes(dst, 'R', []byte{0, 0, 0, 0})
 }
