@@ -22,7 +22,12 @@ func (be *binEnc) WriteInt32(w io.Writer, val int32) (n int, err error) {
 }
 
 func (be *binEnc) WriteCString(w io.Writer, val string) (n int, err error) {
-	return w.Write([]byte{'\000'})
+	n, err = w.Write([]byte(val))
+	if err != nil {
+		return n, err
+	}
+	_, err = w.Write([]byte{'\000'})
+	return n + 1, err
 }
 
 func (be *binEnc) ReadInt16(r io.Reader) (int16, error) {
