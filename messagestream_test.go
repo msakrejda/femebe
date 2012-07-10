@@ -82,6 +82,14 @@ func TestPromise(t *testing.T) {
 	if !bytes.Equal(checkBuf.Bytes(), []byte{0x0, 0x0, 0x0, 0x0}) {
 		t.Fatal()
 	}
+
+	// More attempts to read from that stream should result in EOF
+	for i := 0; i < 5; i += 1 {
+		err := ms.Next(&m)
+		if err != io.EOF {
+			t.Fatal()
+		}
+	}
 }
 
 func TestIncompleteMessage(t *testing.T) {
@@ -118,5 +126,13 @@ func TestIncompleteMessage(t *testing.T) {
 
 	if !bytes.Equal(checkBuf.Bytes(), []byte{0x0, 0x0, 0x0, 0x0}) {
 		t.Fatal()
+	}
+
+	// More attempts to read from that stream should result in EOF
+	for i := 0; i < 5; i += 1 {
+		err := ms.Next(&m)
+		if err != io.EOF {
+			t.Fatal()
+		}
 	}
 }

@@ -61,6 +61,7 @@ type MessageStream struct {
 	r     io.Reader
 	w     io.Writer
 	state ConnState
+	err   error
 	be    *binEnc
 
 	// Incomplete message headers that should be chained into
@@ -75,31 +76,15 @@ func (c *MessageStream) HasNext() bool {
 	return c.msgRemainder.Len() >= MSG_HEADER_MIN_SIZE
 }
 
-func (c *MessageStream) Next(dst *Message) (err error) {
-	defer func() {
-		recovered := recover()
-		if e, ok := recovered.(error); ok {
-			c.state = CONN_ERR
-			err = e
-		} else if recovered != nil {
-			// This wasn't an error, so it may be a string
-			// suggesting something is *really* wrong
-			// (e.g. an assertion failure).  It probably
-			// says "Oh snap".
-			panic(recovered)
-		}
-	}()
-
-	panicNonNil := func(err error) {
-		if err != nil {
-			panic(err)
-		}
-	}
-
+func (c *MessageStream) Next(dst *Message) error {
 	switch c.state {
 	case CONN_STARTUP:
 		msgSz, err := c.be.ReadUInt32(c.r)
-		panicNonNil(err)
+		if err != nil {
+			c.state = CONN_ERR
+			return err
+		}
+
 		remainingSz := msgSz - 4
 
 		if remainingSz > MAX_STARTUP_PACKET_LENGTH {
@@ -108,7 +93,10 @@ func (c *MessageStream) Next(dst *Message) (err error) {
 
 		InitFullyBufferedMsg(dst, '\000', msgSz)
 		_, err = io.CopyN(&dst.buffered, c.r, int64(remainingSz))
-		panicNonNil(err)
+		if err != nil {
+			c.state = CONN_ERR
+			return err
+		}
 
 		c.state = CONN_NORMAL
 		return nil
@@ -119,10 +107,17 @@ func (c *MessageStream) Next(dst *Message) (err error) {
 	again:
 		if c.HasNext() {
 			msgType, err := c.be.ReadByte(&c.msgRemainder)
-			panicNonNil(err)
+			if err != nil {
+				c.state = CONN_ERR
+				return err
+			}
 
 			msgSz, err := c.be.ReadUInt32(&c.msgRemainder)
-			panicNonNil(err)
+			if err != nil {
+				c.state = CONN_ERR
+				return err
+			}
+
 			remainingSz := msgSz - 4
 
 			if remainingSz > uint32(c.msgRemainder.Len()) {
@@ -147,7 +142,11 @@ func (c *MessageStream) Next(dst *Message) (err error) {
 				InitFullyBufferedMsg(dst, msgType, msgSz)
 				_, err = dst.buffered.Write(
 					c.msgRemainder.Next(int(remainingSz)))
-				panicNonNil(err)
+				if err != nil {
+					c.state = CONN_ERR
+					return err
+				}
+
 				return nil
 			}
 		} else if !hasFuture {
@@ -169,8 +168,12 @@ func (c *MessageStream) Next(dst *Message) (err error) {
 			// found that this EOF truncates a message.
 			if err == io.EOF {
 				hasFuture = false
+				goto again
 			} else {
-				panicNonNil(err)
+				if err != nil {
+					c.state = CONN_ERR
+					return err
+				}
 			}
 
 			// NB: errors from writing to the buffer is
@@ -187,7 +190,7 @@ func (c *MessageStream) Next(dst *Message) (err error) {
 		goto again
 
 	case CONN_ERR:
-		return errors.New("MessageStream in error state")
+		return c.err
 
 	default:
 		panic("Oh snap")
