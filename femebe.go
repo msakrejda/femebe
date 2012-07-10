@@ -20,29 +20,26 @@ const MSG_HEADER_MIN_SIZE = 5
 // from the PostgreSQL source code.
 const MAX_STARTUP_PACKET_LENGTH = 10000
 
-func baseNewMessageStream(name string, r io.Reader, w io.Writer) *MessageStream {
+func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 
 	return &MessageStream{
 		Name:         name,
-		r:            r,
-		w:            w,
+		rw:           rw,
 		msgRemainder: *buf,
 		be:           &binEnc{},
 	}
 }
 
-func NewMessageStreamIngress(
-	name string, r io.Reader, w io.Writer) *MessageStream {
-	c := baseNewMessageStream(name, r, w)
+func NewMessageStreamIngress(name string, rw io.ReadWriteCloser) *MessageStream {
+	c := baseNewMessageStream(name, rw)
 	c.state = CONN_STARTUP
 
 	return c
 }
 
-func NewMessageStreamEgress(
-	name string, r io.Reader, w io.Writer) *MessageStream {
-	c := baseNewMessageStream(name, r, w)
+func NewMessageStreamEgress(name string, rw io.ReadWriteCloser) *MessageStream {
+	c := baseNewMessageStream(name, rw)
 	c.state = CONN_NORMAL
 
 	return c
@@ -58,8 +55,7 @@ const (
 
 type MessageStream struct {
 	Name  string
-	r     io.Reader
-	w     io.Writer
+	rw    io.ReadWriteCloser
 	state ConnState
 	err   error
 	be    *binEnc
@@ -79,7 +75,7 @@ func (c *MessageStream) HasNext() bool {
 func (c *MessageStream) Next(dst *Message) error {
 	switch c.state {
 	case CONN_STARTUP:
-		msgSz, err := c.be.ReadUint32(c.r)
+		msgSz, err := c.be.ReadUint32(c.rw)
 		if err != nil {
 			c.state = CONN_ERR
 			return err
@@ -92,7 +88,7 @@ func (c *MessageStream) Next(dst *Message) error {
 		}
 
 		InitFullyBufferedMsg(dst, '\000', msgSz)
-		_, err = io.CopyN(&dst.buffered, c.r, int64(remainingSz))
+		_, err = io.CopyN(&dst.buffered, c.rw, int64(remainingSz))
 		if err != nil {
 			c.state = CONN_ERR
 			return err
@@ -128,7 +124,7 @@ func (c *MessageStream) Next(dst *Message) error {
 				// network.
 				futureBytes := int64(remainingSz -
 					uint32(c.msgRemainder.Len()))
-				rest := io.LimitReader(c.r, futureBytes)
+				rest := io.LimitReader(c.rw, futureBytes)
 				all := io.MultiReader(&c.msgRemainder, rest)
 
 				InitPromiseMsg(dst, msgType, msgSz, all)
@@ -165,7 +161,7 @@ func (c *MessageStream) Next(dst *Message) error {
 		// unless the underlying Reader returns with an error.
 		for !c.HasNext() {
 			newBytes := c.scratchBuf[:]
-			n, err := c.r.Read(newBytes)
+			n, err := c.rw.Read(newBytes)
 
 			// Don't fail immediately, because a few valid
 			// messages may have been received in addition
@@ -199,12 +195,12 @@ func (c *MessageStream) Next(dst *Message) error {
 }
 
 func (c *MessageStream) Send(msg *Message) (err error) {
-	_, err = msg.WriteTo(c.w)
+	_, err = msg.WriteTo(c.rw)
 	return err
 }
 
 func (c *MessageStream) Flush() error {
-	if flushable, ok := c.w.(Flusher); ok {
+	if flushable, ok := c.rw.(Flusher); ok {
 		return flushable.Flush()
 	}
 

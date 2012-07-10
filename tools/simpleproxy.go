@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"bufio"
 )
 
 // Automatically chooses between unix sockets and tcp sockets for
@@ -110,16 +109,14 @@ func handleConnection(clientConn net.Conn, serverAddr string) {
 
 	defer clientConn.Close()
 
-	c := femebe.NewMessageStreamIngress("Client", clientConn,
-		bufio.NewWriter(clientConn))
+	c := femebe.NewMessageStreamIngress("Client", clientConn)
 
 	serverConn, err := autoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
 
-	s := femebe.NewMessageStreamEgress("Server", serverConn,
-		bufio.NewWriter(serverConn))
+	s := femebe.NewMessageStreamEgress("Server", serverConn)
 
 	done := make(chan error)
 	NewSimpleProxySession(done, c, s).start()
