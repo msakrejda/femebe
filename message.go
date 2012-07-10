@@ -35,7 +35,7 @@ func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
 
 	// Write message type byte, with a special exception for
 	// startup messages.
-	if mt := m.MsgType(); mt != '\000' {
+	if mt := m.MsgType(); mt != MSG_STARTUP_MESSAGE {
 		n, err := w.Write([]byte{mt})
 		totalN += int64(n)
 		if err != nil {
@@ -78,18 +78,8 @@ func InitPromiseMsg(dst *Message, msgType byte, size uint32, r io.Reader) {
 	dst.buffered = bytes.Buffer{}
 }
 
-// TODO: all the other auth types
-
-type ConnStatus byte
-
-const (
-	RFQ_IDLE     ConnStatus = 'I'
-	RFQ_IN_TRANS            = 'T'
-	RFQ_ERROR               = 'E'
-)
-
 func IsReadyForQuery(msg Message) bool {
-	return msg.MsgType() == 'Z'
+	return msg.MsgType() == MSG_READY_FOR_QUERY_Z
 }
 
 type FieldDescription struct {
@@ -101,14 +91,6 @@ type FieldDescription struct {
 	atttypmod  int32
 	format     EncFmt
 }
-
-type EncFmt int16
-
-const (
-	ENC_FMT_TEXT    EncFmt = 0
-	ENC_FMT_BINARY         = 1
-	ENC_FMT_UNKNOWN        = 0
-)
 
 type PGType int16
 
@@ -150,7 +132,7 @@ type RowDescription struct {
 
 func (be *binEnc) ReadRowDescription(msg Message) (
 	rd *RowDescription, err error) {
-	if msg.MsgType() != 'T' {
+	if msg.MsgType() != MSG_ROW_DESCRIPTION_T {
 		panic("Oh snap")
 	}
 	b := msg.Payload()
@@ -204,7 +186,7 @@ type StartupMessage struct {
 
 func (be *binEnc) ReadStartupMessage(msg Message) (
 	sm *StartupMessage, err error) {
-	if msg.MsgType() != '\000' {
+	if msg.MsgType() != MSG_STARTUP_MESSAGE {
 		panic("Oh snap")
 	}
 	msgLen := msg.Size()
@@ -246,5 +228,95 @@ func (be *binEnc) ReadStartupMessage(msg Message) (
 }
 
 func InitAuthenticationOk(dst *Message) {
-	InitMsgFromBytes(dst, 'R', []byte{0, 0, 0, 0})
+	InitMsgFromBytes(dst, MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
 }
+
+// FEBE Message type constants shamelessly stolen from the pq library.
+//
+// All the constants in this file have a special naming convention:
+// "msg(NameInManual)(characterCode)".  This results in long and
+// awkward constant names, but also makes it easy to determine what
+// the author's intent is quickly in code (consider that both
+// msgDescribeD and msgDataRowD appear on the wire as 'D') as well as
+// debugging against captured wire protocol traffic (where one will
+// only see 'D', but has a sense what state the protocol is in).
+
+type EncFmt int16
+
+const (
+	ENC_FMT_TEXT    EncFmt = 0
+	ENC_FMT_BINARY         = 1
+	ENC_FMT_UNKNOWN        = 0
+)
+
+// Special sub-message coding for Close and Describe
+const (
+	IS_PORTAL = 'P'
+	IS_STMT   = 'S'
+)
+
+// Sub-message character coding that is part of ReadyForQuery
+type ConnStatus byte
+
+const (
+	RFQ_IDLE    ConnStatus = 'I'
+	RFQ_INTRANS            = 'T'
+	RFQ_ERROR              = 'E'
+)
+
+// Message tags
+const (
+	MSG_AUTHENTICATION_OK_R                 byte = 'R'
+	MSG_AUTHENTICATION_CLEARTEXT_PASSWORD_R      = 'R'
+	MSG_AUTHENTICATION_M_D5_PASSWORD_R           = 'R'
+	MSG_AUTHENTICATION_S_C_M_CREDENTIAL_R        = 'R'
+	MSG_AUTHENTICATION_G_S_S_R                   = 'R'
+	MSG_AUTHENTICATION_S_S_P_I_R                 = 'R'
+	MSG_AUTHENTICATION_G_S_S_CONTINUE_R          = 'R'
+	MSG_BACKEND_KEY_DATA_K                       = 'K'
+	MSG_BIND_B                                   = 'B'
+	MSG_BIND_COMPLETE2                           = '2'
+	MSG_CANCEL_REQUEST                           = 129 // see below
+	MSG_CLOSE_C                                  = 'C'
+	MSG_CLOSE_COMPLETE3                          = '3'
+	MSG_COMMAND_COMPLETE_C                       = 'C'
+	MSG_COPY_DATAD                               = 'd'
+	MSG_COPY_DONEC                               = 'c'
+	MSG_COPY_FAILF                               = 'f'
+	MSG_COPY_IN_RESPONSE_G                       = 'G'
+	MSG_COPY_OUT_RESPONSE_H                      = 'H'
+	MSG_COPY_BOTH_RESPONSE_W                     = 'W'
+	MSG_DATA_ROW_D                               = 'D'
+	MSG_DESCRIBE_D                               = 'D'
+	MSG_EMPTY_QUERY_RESPONSE_I                   = 'I'
+	MSG_ERROR_RESPONSE_E                         = 'E'
+	MSG_EXECUTE_E                                = 'E'
+	MSG_FLUSH_H                                  = 'H'
+	MSG_FUNCTION_CALL_F                          = 'F'
+	MSG_FUNCTION_CALL_RESPONSE_V                 = 'V'
+	MSG_NO_DATAN                                 = 'n'
+	MSG_NOTICE_RESPONSE_N                        = 'N'
+	MSG_NOTIFICATION_RESPONSE_A                  = 'A'
+	MSG_PARAMETER_DESCRIPTIONT                   = 't'
+	MSG_PARAMETER_STATUS_S                       = 'S'
+	MSG_PARSE_P                                  = 'P'
+	MSG_PARSE_COMPLETE1                          = '1'
+	MSG_PASSWORD_MESSAGEP                        = 'p'
+	MSG_PORTAL_SUSPENDEDS                        = 's'
+	MSG_QUERY_Q                                  = 'Q'
+	MSG_READY_FOR_QUERY_Z                        = 'Z'
+	MSG_ROW_DESCRIPTION_T                        = 'T'
+	// We treat SSLRequest as a protocol negotiation mechanic
+	// rather than a first-class message, so it does not appear
+	// here
+
+	// StartupMessage and CancelRequest formatted differently:
+	// on the wire, they do not have a formal message type, so
+	// we use the top bit of these 8-bit bytes to flag these
+	// with distinct message types. This is a pretty ugly hack,
+	// but allows us to treat the messages uniformly throughout
+	// most of the system
+	MSG_STARTUP_MESSAGE = 128
+	MSG_SYNC_S          = 'S'
+	MSG_TERMINATE_X     = 'X'
+)

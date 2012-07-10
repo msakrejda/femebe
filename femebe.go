@@ -87,7 +87,7 @@ func (c *MessageStream) Next(dst *Message) error {
 			panic(errors.New("rejecting oversized startup packet"))
 		}
 
-		InitFullyBufferedMsg(dst, '\000', msgSz)
+		InitFullyBufferedMsg(dst, MSG_STARTUP_MESSAGE, msgSz)
 		_, err = io.CopyN(&dst.buffered, c.rw, int64(remainingSz))
 		if err != nil {
 			c.state = CONN_ERR
