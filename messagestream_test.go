@@ -28,7 +28,7 @@ func TestFullyBuffered(t *testing.T) {
 	// Read them back out
 	for i := 0; i < NUM_MSG-1; i += 1 {
 		if !ms.HasNext() {
-			t.FailNow()
+			t.Fatal()
 		}
 
 		ms.Next(&m)
@@ -36,6 +36,6 @@ func TestFullyBuffered(t *testing.T) {
 
 	// The very last HasNext call must return false
 	if ms.HasNext() {
-		t.FailNow()
+		t.Fatal()
 	}
 }
