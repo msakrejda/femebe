@@ -85,13 +85,16 @@ func TestPromise(t *testing.T) {
 }
 
 func TestIncompleteMessage(t *testing.T) {
+	// Write a complete AuthenticationOk message to a buffer.
 	var m Message
 	InitAuthenticationOk(&m)
 
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	m.WriteTo(buf)
 
-	header := make([]byte, 5)
+	// Slice it apart: a four-byte prefix is not enough to form a
+	// complete message.
+	header := make([]byte, 4)
 	buf.Read(header)
 
 	ms := newTestMessageStream(t)
@@ -99,12 +102,17 @@ func TestIncompleteMessage(t *testing.T) {
 
 	ms.r = buf
 
-	if !ms.HasNext() {
+	// Only four bytes are in the MessageStream's buffer, and
+	// that's not enough to form a Message without blocking.
+	if ms.HasNext() {
 		t.Fatal()
 	}
 
+	// However, a-priori this test ensures there are enough bytes
+	// in the future stream to produce a message.
 	ms.Next(&m)
 
+	// Grab the message and check the contents of the payload.
 	checkBuf := bytes.NewBuffer(make([]byte, 0, 1024))
 	io.Copy(checkBuf, m.Payload())
 
