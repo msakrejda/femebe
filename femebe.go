@@ -3,6 +3,7 @@ package femebe
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -84,11 +85,34 @@ func (c *MessageStream) Next(dst *Message) error {
 		remainingSz := msgSz - 4
 
 		if remainingSz > MAX_STARTUP_PACKET_LENGTH {
-			panic(errors.New("rejecting oversized startup packet"))
+			panic(errors.New("Rejecting oversized startup packet"))
+		}
+		if remainingSz < 4 {
+			// We expect all initialization messages to
+			// have at least a 4-byte header
+			panic(fmt.Errorf("Expected message of at least 4 bytes; got %v",
+				remainingSz))
+		}
+		headerBytes := make([]byte, 4)
+		headerRead, err := io.ReadFull(c.rw, headerBytes)
+		var headerType byte
+		if headerRead != 4 {
+			panic(fmt.Errorf("Could not read startup message header;"+
+				" expected 4 bytes, only got %v", headerRead))
+		}
+		if bytes.HasPrefix(headerBytes, []byte{0x00, 0x03, 0x00, 0x00}) {
+			headerType = MSG_STARTUP_MESSAGE
+		} else if bytes.HasPrefix(headerBytes, []byte{0x04, 0xd2, 0x16, 0x2e}) {
+			headerType = MSG_CANCEL_REQUEST
+		} else {
+			panic(fmt.Errorf("Unexpected startup message header '%v'",
+				headerBytes))
 		}
 
-		InitFullyBufferedMsg(dst, MSG_STARTUP_MESSAGE, msgSz)
-		_, err = io.CopyN(&dst.buffered, c.rw, int64(remainingSz))
+		hr := bytes.NewReader(headerBytes)
+		startupReader := io.MultiReader(hr, c.rw)
+		InitFullyBufferedMsg(dst, headerType, msgSz)
+		_, err = io.CopyN(&dst.buffered, startupReader, int64(remainingSz))
 		if err != nil {
 			c.state = CONN_ERR
 			return err
