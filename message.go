@@ -34,8 +34,11 @@ func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
 	var totalN int64
 
 	// Write message type byte, with a special exception for
-	// startup messages.
-	if mt := m.MsgType(); mt != MSG_STARTUP_MESSAGE {
+	// differently-formatted messages (currently only
+	// StartupMessage and CancelRequest; these don't have a
+	// proper message type on the wire, but are noted with
+	// a fake pseudo-type byte with the high-bit set)
+	if mt := m.MsgType(); mt & 0x80 == 0 {
 		n, err := w.Write([]byte{mt})
 		totalN += int64(n)
 		if err != nil {
