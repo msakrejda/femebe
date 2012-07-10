@@ -32,14 +32,14 @@ func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	}
 }
 
-func NewMessageStreamIngress(name string, rw io.ReadWriteCloser) *MessageStream {
+func NewClientMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	c := baseNewMessageStream(name, rw)
 	c.state = CONN_STARTUP
 
 	return c
 }
 
-func NewMessageStreamEgress(name string, rw io.ReadWriteCloser) *MessageStream {
+func NewServerMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	c := baseNewMessageStream(name, rw)
 	c.state = CONN_NORMAL
 
