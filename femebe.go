@@ -102,9 +102,9 @@ func (c *MessageStream) Next(dst *Message) error {
 		return nil
 
 	case CONN_NORMAL:
-		hasFuture := true
-
 	again:
+		// Fast-path: if a message can be formed from the
+		// buffer, do so immediately.
 		if c.HasNext() {
 			msgType, err := c.be.ReadByte(&c.msgRemainder)
 			if err != nil {
@@ -149,31 +149,30 @@ func (c *MessageStream) Next(dst *Message) error {
 
 				return nil
 			}
-		} else if !hasFuture {
-			// Can't form even one more message and
-			// underlying stream is exhausted, so tell the
-			// caller.
-			return io.EOF
+		}
+
+		// No more deliverable messages are buffered and an
+		// error has been set in a previous iteration:
+		// transition to CONN_ERR.
+		if !c.HasNext() && c.err != nil {
+			c.state = CONN_ERR
+			return c.err
 		}
 
 		// Slow-path: need to grab a chunk of bytes from the
 		// kernel, so get as many as feasible, but do insist
-		// on least enough to form another message header.
-		for c.msgRemainder.Len() < MSG_HEADER_MIN_SIZE {
+		// on least enough to form another message header
+		// unless the underlying Reader returns with an error.
+		for !c.HasNext() {
 			newBytes := c.scratchBuf[:]
 			n, err := c.r.Read(newBytes)
 
-			// EOF is not known to be a cause for alarm
-			// yet: that only can be determined if it's
-			// found that this EOF truncates a message.
-			if err == io.EOF {
-				hasFuture = false
+			// Don't fail immediately, because a few valid
+			// messages may have been received in addition
+			// to an error.
+			if err != nil {
+				c.err = err
 				goto again
-			} else {
-				if err != nil {
-					c.state = CONN_ERR
-					return err
-				}
 			}
 
 			// NB: errors from writing to the buffer is
