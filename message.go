@@ -67,11 +67,7 @@ func InitFullyBufferedMsg(dst *Message, msgType byte, size uint32) {
 }
 
 func InitMsgFromBytes(dst *Message, msgType byte, payload []byte) {
-	dst.msgType = msgType
-
-	// Because message size includes the size word itself.
-	dst.sz = uint32(len(payload)) + 4
-	dst.buffered.Reset()
+	InitFullyBufferedMsg(dst, msgType, uint32(len(payload))+4)
 	dst.buffered.Write(payload)
 }
 
