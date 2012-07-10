@@ -79,7 +79,7 @@ func (c *MessageStream) HasNext() bool {
 func (c *MessageStream) Next(dst *Message) error {
 	switch c.state {
 	case CONN_STARTUP:
-		msgSz, err := c.be.ReadUInt32(c.r)
+		msgSz, err := c.be.ReadUint32(c.r)
 		if err != nil {
 			c.state = CONN_ERR
 			return err
@@ -112,7 +112,7 @@ func (c *MessageStream) Next(dst *Message) error {
 				return err
 			}
 
-			msgSz, err := c.be.ReadUInt32(&c.msgRemainder)
+			msgSz := c.be.ReadUint32FromBuffer(&c.msgRemainder)
 			if err != nil {
 				c.state = CONN_ERR
 				return err

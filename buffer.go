@@ -34,7 +34,7 @@ func (be *binEnc) ReadInt16(r io.Reader) (int16, error) {
 	return int16(binary.BigEndian.Uint16(valBytes)), nil
 }
 
-func (be *binEnc) ReadUInt16(r io.Reader) (uint16, error) {
+func (be *binEnc) ReadUint16(r io.Reader) (uint16, error) {
 	valBytes := be[0:2]
 	if _, err := io.ReadFull(r, valBytes); err != nil {
 		return 0, err
@@ -52,13 +52,20 @@ func (be *binEnc) ReadInt32(r io.Reader) (int32, error) {
 	return int32(binary.BigEndian.Uint32(valBytes)), nil
 }
 
-func (be *binEnc) ReadUInt32(r io.Reader) (ret uint32, err error) {
+func (be *binEnc) ReadUint32(r io.Reader) (ret uint32, err error) {
 	valBytes := be[0:4]
 	if _, err = io.ReadFull(r, valBytes); err != nil {
 		return 0, err
 	}
 
 	return binary.BigEndian.Uint32(valBytes), nil
+}
+
+func (be *binEnc) ReadUint32FromBuffer(r *bytes.Buffer) uint32 {
+	valBytes := be[0:4]
+	r.Read(valBytes)
+
+	return binary.BigEndian.Uint32(valBytes)
 }
 
 func (be *binEnc) ReadCString(r io.Reader) (s string, err error) {

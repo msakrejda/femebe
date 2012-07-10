@@ -154,7 +154,7 @@ func (be *binEnc) ReadRowDescription(msg Message) (
 		panic("Oh snap")
 	}
 	b := msg.Payload()
-	fieldCount, err := be.ReadUInt16(b)
+	fieldCount, err := be.ReadUint16(b)
 	if err != nil {
 		return nil, err
 	}
