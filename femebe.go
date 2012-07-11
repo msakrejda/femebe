@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"reflect"
 )
 
 type Flusher interface {
@@ -24,65 +23,62 @@ const MSG_HEADER_MIN_SIZE = 5
 // from the PostgreSQL source code.
 const MAX_STARTUP_PACKET_LENGTH = 10000
 
-func baseNewMessageStream(config *Config, rw io.ReadWriteCloser) *MessageStream {
+func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 
 	return &MessageStream{
-		Name:         config.Name,
+		Name:         name,
 		rw:           rw,
 		msgRemainder: *buf,
-		be:           &binEnc{},
 	}
 }
 
 type Config struct {
-	Name      string
-	Sslmode   string
-	TlsConfig *tls.Config
+	Name    string
+	Sslmode string
 }
 
-func NewClientMessageStream(config *Config, rw io.ReadWriteCloser) *MessageStream {
-	c := baseNewMessageStream(config, rw)
-	c.state = CONN_STARTUP
-
-	return c
-}
-
-func NewServerMessageStream(config *Config, rw io.ReadWriteCloser) (*MessageStream, error) {
-	if config.Sslmode != "disable" {
-		// TODO: this is a little ugly; TLS negotiation is (rather sensibly)
-		// only available on Conns rather than arbitrary ReadWriteClosers
-		conn, ok := rw.(net.Conn)
-
-		if !ok && config.Sslmode != "allow" &&
-			config.Sslmode != "prefer" {
-			return nil, fmt.Errorf("Cannot establish required SSL connection on %v",
-				reflect.TypeOf(rw))
-		}
+func NegotiateTLS(c net.Conn, sslmode string, config *tls.Config) (
+	net.Conn, error) {
+	if sslmode != "disable" {
 		// send an SSLRequest message
 		// length: int32(8)
 		// code:   int32(80877103)
-		rw.Write([]byte{0x00, 0x00, 0x00, 0x08,
+		c.Write([]byte{0x00, 0x00, 0x00, 0x08,
 			0x04, 0xd2, 0x16, 0x2f})
 
 		sslResponse := make([]byte, 1)
-		bytesRead, err := io.ReadFull(rw, sslResponse)
+		bytesRead, err := io.ReadFull(c, sslResponse)
 		if bytesRead != 1 || err != nil {
 			return nil, errors.New("Could not read response to SSL Request")
 		}
 
 		if sslResponse[0] == 'S' {
-			rw = tls.Client(conn, config.TlsConfig)
-		} else if sslResponse[0] == 'N' && config.Sslmode != "allow" &&
-			config.Sslmode != "prefer" {
+			return tls.Client(c, config), nil
+		} else if sslResponse[0] == 'N' && sslmode != "allow" &&
+			sslmode != "prefer" {
 			// reject; we require ssl
 			return nil, errors.New("SSL required but declined by server.")
 		} else {
-			// do nothing; proceed with normal startup
+			return c, nil
 		}
+
+		panic("Oh snap!")
 	}
 
-	c := baseNewMessageStream(config, rw)
+	return c, nil
+}
+
+func NewClientMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
+	c := baseNewMessageStream(name, rw)
+	c.state = CONN_STARTUP
+
+	return c
+}
+
+func NewServerMessageStream(name string, rw io.ReadWriteCloser) (
+	*MessageStream, error) {
+	c := baseNewMessageStream(name, rw)
 	c.state = CONN_NORMAL
 
 	return c, nil
@@ -101,7 +97,6 @@ type MessageStream struct {
 	rw    io.ReadWriteCloser
 	state ConnState
 	err   error
-	be    *binEnc
 
 	// Incomplete message headers that should be chained into
 	// message parsing with the subsequent .Next() invocation.
@@ -118,7 +113,7 @@ func (c *MessageStream) HasNext() bool {
 func (c *MessageStream) Next(dst *Message) error {
 	switch c.state {
 	case CONN_STARTUP:
-		msgSz, err := c.be.ReadUint32(c.rw)
+		msgSz, err := ReadUint32(c.rw)
 		if err != nil {
 			c.state = CONN_ERR
 			return err
@@ -153,7 +148,7 @@ func (c *MessageStream) Next(dst *Message) error {
 
 		hr := bytes.NewReader(headerBytes)
 		startupReader := io.MultiReader(hr, c.rw)
-		InitFullyBufferedMsg(dst, headerType, msgSz)
+		dst.InitFullyBufferedMsg(headerType, msgSz)
 		_, err = io.CopyN(&dst.buffered, startupReader, int64(remainingSz))
 		if err != nil {
 			c.state = CONN_ERR
@@ -168,17 +163,8 @@ func (c *MessageStream) Next(dst *Message) error {
 		// Fast-path: if a message can be formed from the
 		// buffer, do so immediately.
 		if c.HasNext() {
-			msgType, err := c.be.ReadByte(&c.msgRemainder)
-			if err != nil {
-				c.state = CONN_ERR
-				return err
-			}
-
-			msgSz := c.be.ReadUint32FromBuffer(&c.msgRemainder)
-			if err != nil {
-				c.state = CONN_ERR
-				return err
-			}
+			msgType := c.msgRemainder.Next(1)[0]
+			msgSz := ReadUint32FromBuffer(&c.msgRemainder)
 
 			remainingSz := msgSz - 4
 
@@ -193,7 +179,7 @@ func (c *MessageStream) Next(dst *Message) error {
 				rest := io.LimitReader(c.rw, futureBytes)
 				all := io.MultiReader(&c.msgRemainder, rest)
 
-				InitPromiseMsg(dst, msgType, msgSz, all)
+				dst.InitPromiseMsg(msgType, msgSz, all)
 				return nil
 			} else {
 				// The whole message is in the buffer,
@@ -201,8 +187,8 @@ func (c *MessageStream) Next(dst *Message) error {
 				// memory copying, avoiding the need
 				// for a more complex Promise-style
 				// message.
-				InitFullyBufferedMsg(dst, msgType, msgSz)
-				_, err = dst.buffered.Write(
+				dst.InitFullyBufferedMsg(msgType, msgSz)
+				_, err := dst.buffered.Write(
 					c.msgRemainder.Next(int(remainingSz)))
 				if err != nil {
 					c.state = CONN_ERR

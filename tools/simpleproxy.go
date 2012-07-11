@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"femebe"
 	"fmt"
 	"io"
@@ -92,6 +93,17 @@ func NewSimpleProxySession(
 	return &session{ingress: ingress, egress: egress}
 }
 
+type bufWriteCon struct {
+	io.ReadCloser
+	femebe.Flusher
+	io.Writer
+}
+
+func newBufWriteCon(c net.Conn) *bufWriteCon {
+	bw := bufio.NewWriter(c)
+	return &bufWriteCon{c, bw, bw}
+}
+
 // Generic connection handler
 //
 // This redelegates to more specific proxy handlers that contain the
@@ -110,9 +122,10 @@ func handleConnection(clientConn net.Conn, serverAddr string) {
 
 	defer clientConn.Close()
 
-	c := femebe.NewClientMessageStream(&femebe.Config{"Client", "none", nil}, clientConn)
+	c := femebe.NewClientMessageStream(
+		"Client", newBufWriteCon(clientConn))
 
-	serverConn, err := autoDial(serverAddr)
+	unencryptServerConn, err := autoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
@@ -120,7 +133,14 @@ func handleConnection(clientConn net.Conn, serverAddr string) {
 	tlsConf := tls.Config{}
 	tlsConf.InsecureSkipVerify = true
 
-	s, err := femebe.NewServerMessageStream(&femebe.Config{"Server", "require", &tlsConf}, serverConn)
+	sConn, err := femebe.NegotiateTLS(
+		unencryptServerConn, "prefer", &tlsConf)
+	if err != nil {
+		fmt.Printf("Could not negotiate TLS: %v\n", err)
+	}
+
+	s, err := femebe.NewServerMessageStream(
+		"Server", newBufWriteCon(sConn))
 	if err != nil {
 		fmt.Printf("Could not initialize connection to server: %v\n", err)
 	}
