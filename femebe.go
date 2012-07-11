@@ -2,9 +2,12 @@ package femebe
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"reflect"
 )
 
 type Flusher interface {
@@ -21,29 +24,68 @@ const MSG_HEADER_MIN_SIZE = 5
 // from the PostgreSQL source code.
 const MAX_STARTUP_PACKET_LENGTH = 10000
 
-func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
+func baseNewMessageStream(config *Config, rw io.ReadWriteCloser) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 
 	return &MessageStream{
-		Name:         name,
+		Name:         config.Name,
 		rw:           rw,
 		msgRemainder: *buf,
 		be:           &binEnc{},
 	}
 }
 
-func NewClientMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
-	c := baseNewMessageStream(name, rw)
+type Config struct {
+	Name      string
+	Sslmode   string
+	TlsConfig *tls.Config
+}
+
+func NewClientMessageStream(config *Config, rw io.ReadWriteCloser) *MessageStream {
+	c := baseNewMessageStream(config, rw)
 	c.state = CONN_STARTUP
 
 	return c
 }
 
-func NewServerMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
-	c := baseNewMessageStream(name, rw)
+func NewServerMessageStream(config *Config, rw io.ReadWriteCloser) (*MessageStream, error) {
+	if config.Sslmode != "disable" {
+		// TODO: this is a little ugly; TLS negotiation is (rather sensibly)
+		// only available on Conns rather than arbitrary ReadWriteClosers
+		conn, ok := rw.(net.Conn)
+
+		if !ok && config.Sslmode != "allow" &&
+			config.Sslmode != "prefer" {
+			return nil, fmt.Errorf("Cannot establish required SSL connection on %v",
+				reflect.TypeOf(rw))
+		}
+		// send an SSLRequest message
+		// length: int32(8)
+		// code:   int32(80877103)
+		rw.Write([]byte{0x00, 0x00, 0x00, 0x08,
+			0x04, 0xd2, 0x16, 0x2f})
+
+		sslResponse := make([]byte, 1)
+		bytesRead, err := io.ReadFull(rw, sslResponse)
+		if bytesRead != 1 || err != nil {
+			return nil, errors.New("Could not read response to SSL Request")
+		}
+
+		if sslResponse[0] == 'S' {
+			rw = tls.Client(conn, config.TlsConfig)
+		} else if sslResponse[0] == 'N' && config.Sslmode != "allow" &&
+			config.Sslmode != "prefer" {
+			// reject; we require ssl
+			return nil, errors.New("SSL required but declined by server.")
+		} else {
+			// do nothing; proceed with normal startup
+		}
+	}
+
+	c := baseNewMessageStream(config, rw)
 	c.state = CONN_NORMAL
 
-	return c
+	return c, nil
 }
 
 type ConnState int32

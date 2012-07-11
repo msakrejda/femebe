@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"crypto/tls"
 )
 
 // Automatically chooses between unix sockets and tcp sockets for
@@ -109,14 +110,20 @@ func handleConnection(clientConn net.Conn, serverAddr string) {
 
 	defer clientConn.Close()
 
-	c := femebe.NewClientMessageStream("Client", clientConn)
+	c := femebe.NewClientMessageStream(&femebe.Config{"Client", "none", nil}, clientConn)
 
 	serverConn, err := autoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
 
-	s := femebe.NewServerMessageStream("Server", serverConn)
+	tlsConf := tls.Config{}
+	tlsConf.InsecureSkipVerify = true
+
+	s, err := femebe.NewServerMessageStream(&femebe.Config{"Server", "require", &tlsConf}, serverConn)
+	if err != nil {
+		fmt.Printf("Could not initialize connection to server: %v\n", err)
+	}
 
 	done := make(chan error)
 	NewSimpleProxySession(done, c, s).start()
