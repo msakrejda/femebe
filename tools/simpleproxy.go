@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
 	"crypto/tls"
 )
@@ -162,6 +163,26 @@ func main() {
 		fmt.Printf("Could not listen on address: %v\n", err)
 		os.Exit(1)
 	}
+
+
+	// Signal handling; this is pretty ghetto now, but at least we
+	// can exit cleanly on an interrupt. N.B.: this currently does
+	// not correctly capture SIGTERM on Linux (and possibly
+	// elsewhere)--it just kills the process directly without
+	// involving the signal handler.
+	sigch := make(chan os.Signal)
+	signal.Notify(sigch, os.Interrupt, os.Kill)
+	watchSigs := func() {
+		for sig := range sigch {
+			fmt.Printf("Got signal %v", sig)
+			if sig == os.Kill {
+				os.Exit(2)
+			} else if sig == os.Interrupt {
+				os.Exit(0)
+			}
+		}
+	}
+	go watchSigs()
 
 	for {
 		conn, err := ln.Accept()
