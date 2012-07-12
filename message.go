@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"reflect"
 )
 
 type Message struct {
@@ -138,7 +139,7 @@ func (m *Message) InitDataRow(cols []interface{}) {
 	buf := bytes.NewBuffer(msgBytes)
 	colCount := int16(len(cols))
 	WriteInt16(buf, colCount)
-	fmt.Printf("making data message with %v columns", colCount)
+	fmt.Printf("making data message with %v columns\n", colCount)
 	for _, val := range cols {
 		// TODO: allow format specification
 		encodeValue(buf, val, ENC_FMT_TEXT)
@@ -219,7 +220,8 @@ func encodeValue(buff *bytes.Buffer, val interface{},
 	case bool:
 		EncodeBool(buff, val.(bool), format)
 	default:
-		panic("Can't encode value")
+		panic(fmt.Errorf("Can't encode value: %#q:%#q\n",
+			reflect.TypeOf(val), val))
 	}
 }
 
