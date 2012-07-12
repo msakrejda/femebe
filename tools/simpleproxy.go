@@ -69,9 +69,9 @@ func NewSimpleProxySession(
 	}
 
 	egress := func() {
-		for {
-			var m femebe.Message
+		var m femebe.Message
 
+		for {
 			err := server.Next(&m)
 			if err != nil {
 				errch <- err
