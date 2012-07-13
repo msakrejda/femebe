@@ -139,7 +139,6 @@ func (m *Message) InitDataRow(cols []interface{}) {
 	buf := bytes.NewBuffer(msgBytes)
 	colCount := int16(len(cols))
 	WriteInt16(buf, colCount)
-	fmt.Printf("making data message with %v columns\n", colCount)
 	for _, val := range cols {
 		// TODO: allow format specification
 		encodeValue(buf, val, ENC_FMT_TEXT)
@@ -296,7 +295,6 @@ func (msg *Message) ReadStartupMessage() (*StartupMessage, error) {
 
 	protoVer, err := ReadInt32(b)
 	if err != nil {
-		fmt.Println("protover")
 		return nil, err
 	}
 
@@ -306,15 +304,12 @@ func (msg *Message) ReadStartupMessage() (*StartupMessage, error) {
 
 	params := make(map[string]string)
 	for remaining := msgLen - 8; remaining > 1; {
-		fmt.Printf("remaining: %v\n", remaining)
 		key, err := ReadCString(b)
-		fmt.Printf("keycstring, %v %v\n", key, err)
 		if err != nil {
 			return nil, err
 		}
 
 		val, err := ReadCString(b)
-		fmt.Printf("valcstring, %v %v\n", val, err)
 
 		if err != nil {
 			return nil, err
