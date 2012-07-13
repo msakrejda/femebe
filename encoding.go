@@ -5,7 +5,8 @@ import (
 	"fmt"
 )
 
-func encodeValText(buf *bytes.Buffer, val interface{}, format string) {
+func encodeValText(buf *bytes.Buffer,
+	val interface{}, format string) {
 	result := fmt.Sprintf(format, val)
 	WriteInt32(buf, int32(len([]byte(result))))
 	buf.WriteString(result)

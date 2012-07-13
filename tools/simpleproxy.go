@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"femebe"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"strings"
+	"crypto/tls"
 )
 
 // Automatically chooses between unix sockets and tcp sockets for
@@ -29,68 +31,84 @@ func autoDial(place string) (net.Conn, error) {
 	return net.Dial("tcp", place)
 }
 
-type handlerFunc func(
-	client femebe.MessageStream,
-	server femebe.MessageStream,
-	errch chan error)
-
-type proxyBehavior struct {
-	toFrontend handlerFunc
-	toServer   handlerFunc
+type session struct {
+	ingress func()
+	egress  func()
 }
 
-func (pbh *proxyBehavior) start(
-	client femebe.MessageStream,
-	server femebe.MessageStream) (errch chan error) {
-
-	errch = make(chan error)
-
-	go pbh.toFrontend(client, server, errch)
-	go pbh.toServer(client, server, errch)
-	return errch
+func (s *session) start() {
+	go s.ingress()
+	go s.egress()
 }
 
-var simpleProxy = proxyBehavior{
-	toFrontend: func(client femebe.MessageStream,
-		server femebe.MessageStream, errch chan error) {
+func NewSimpleProxySession(
+	errch chan error,
+	client *femebe.MessageStream,
+	server *femebe.MessageStream) *session {
+
+	ingress := func() {
+		var m femebe.Message
+
 		for {
-			msg, err := server.Next()
+			err := client.Next(&m)
 			if err != nil {
 				errch <- err
 				return
 			}
 
-			err = client.Send(msg)
-			if err != nil {
-				errch <- err
-				return
-			}
-		}
-	},
-	toServer: func(client femebe.MessageStream,
-		server femebe.MessageStream, errch chan error) {
-		for {
-			msg, err := client.Next()
+			err = server.Send(&m)
 			if err != nil {
 				errch <- err
 				return
 			}
 
-			err = server.Send(msg)
+			if !client.HasNext() {
+				server.Flush()
+			}
+		}
+	}
+
+	egress := func() {
+		for {
+			var m femebe.Message
+
+			err := server.Next(&m)
 			if err != nil {
 				errch <- err
 				return
 			}
+
+			err = client.Send(&m)
+			if err != nil {
+				errch <- err
+				return
+			}
+
+			if !server.HasNext() {
+				client.Flush()
+			}
 		}
-	},
+	}
+
+	return &session{ingress: ingress, egress: egress}
+}
+
+type bufWriteCon struct {
+	io.ReadCloser
+	femebe.Flusher
+	io.Writer
+}
+
+func newBufWriteCon(c net.Conn) *bufWriteCon {
+	bw := bufio.NewWriter(c)
+	return &bufWriteCon{c, bw, bw}
 }
 
 // Generic connection handler
 //
 // This redelegates to more specific proxy handlers that contain the
 // main proxy loop logic.
-func handleConnection(proxy proxyBehavior,
-	clientConn net.Conn, serverAddr string) {
+func handleConnection(clientConn net.Conn, serverAddr string) {
 	var err error
 
 	// Log disconnections
@@ -104,16 +122,31 @@ func handleConnection(proxy proxyBehavior,
 
 	defer clientConn.Close()
 
-	c := femebe.NewMessageStream("Client", clientConn, clientConn)
+	c := femebe.NewClientMessageStream(
+		"Client", newBufWriteCon(clientConn))
 
-	serverConn, err := autoDial(serverAddr)
+	unencryptServerConn, err := autoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
 
-	b := femebe.NewMessageStream("Server", serverConn, serverConn)
+	tlsConf := tls.Config{}
+	tlsConf.InsecureSkipVerify = true
 
-	done := proxy.start(c, b)
+	sConn, err := femebe.NegotiateTLS(
+		unencryptServerConn, "prefer", &tlsConf)
+	if err != nil {
+		fmt.Printf("Could not negotiate TLS: %v\n", err)
+	}
+
+	s, err := femebe.NewServerMessageStream(
+		"Server", newBufWriteCon(sConn))
+	if err != nil {
+		fmt.Printf("Could not initialize connection to server: %v\n", err)
+	}
+
+	done := make(chan error)
+	NewSimpleProxySession(done, c, s).start()
 	err = <-done
 }
 
@@ -138,7 +171,7 @@ func main() {
 			continue
 		}
 
-		go handleConnection(simpleProxy, conn, os.Args[2])
+		go handleConnection(conn, os.Args[2])
 	}
 
 	fmt.Println("simpleproxy quits successfully")

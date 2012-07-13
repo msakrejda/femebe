@@ -2,76 +2,100 @@ package femebe
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"io"
+	"reflect"
 )
 
 type Message struct {
+	// Constant-width header
 	msgType byte
-	payload []byte
+	sz      uint32
+
+	// Tracks the state of the Payload stream's progression
+	payloadReader io.Reader
+
+	// Message contents buffered in memory
+	buffered bytes.Buffer
 }
 
-func NewAuthenticationOk() *Message {
-	return &Message{'R', []byte{0, 0, 0, 0}}
+func (m *Message) MsgType() byte {
+	return m.msgType
 }
 
-func IsAuthenticationOk(msg *Message) bool {
-	return msg.msgType == 'R' &&
-		msg.payload[0] == 0 &&
-		msg.payload[1] == 0 &&
-		msg.payload[2] == 0 &&
-		msg.payload[3] == 0
+func (m *Message) Payload() io.Reader {
+	return m.payloadReader
 }
 
-// TODO: all the other auth types
+func (m *Message) Size() uint32 {
+	return m.sz
+}
 
-const (
-	RFQ_IDLE     = 'I'
-	RFQ_IN_TRANS = 'T'
-	RFQ_ERROR    = 'E'
-)
+func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
+	var totalN int64
 
-type ConnStatus byte
-
-func NewReadyForQuery(connState ConnStatus) (*Message, error) {
-	if connState != RFQ_IDLE && connState != RFQ_IN_TRANS && connState != RFQ_ERROR {
-		return nil, fmt.Errorf("Invalid message type %v", connState)
+	// Write message type byte, with a special exception for
+	// differently-formatted messages (currently only
+	// StartupMessage and CancelRequest; these don't have a
+	// proper message type on the wire, but are noted with
+	// a fake pseudo-type byte with the high-bit set)
+	if mt := m.MsgType(); (mt & 0x80) == 0 {
+		n, err := w.Write([]byte{mt})
+		totalN += int64(n)
+		if err != nil {
+			return totalN, err
+		}
 	}
-	return &Message{'Z', []byte{byte(connState)}}, nil
+
+	// Write message size integer to the stream
+	var bufBack [4]byte
+	buf := bufBack[:]
+	binary.BigEndian.PutUint32(buf, m.Size())
+	nMsgSz, err := w.Write(buf)
+	totalN += int64(nMsgSz)
+	if err != nil {
+		return totalN, err
+	}
+
+	// Write the actual payload
+	nPayload, err := io.Copy(w, m.Payload())
+	totalN += nPayload
+	return totalN, err
+}
+
+func (m *Message) InitFullyBufferedMsg(msgType byte, size uint32) {
+	m.msgType = msgType
+	m.sz = size
+	m.buffered.Reset()
+	m.payloadReader = &m.buffered
+}
+
+func (m *Message) InitMsgFromBytes(msgType byte, payload []byte) {
+	m.InitFullyBufferedMsg(msgType, uint32(len(payload))+4)
+	m.buffered.Write(payload)
+}
+
+func (m *Message) InitPromiseMsg(msgType byte, size uint32, r io.Reader) {
+	m.msgType = msgType
+	m.sz = size
+	m.payloadReader = r
+	m.buffered = bytes.Buffer{}
 }
 
 func IsReadyForQuery(msg *Message) bool {
-	return msg.msgType == 'Z'
+	return msg.MsgType() == MSG_READY_FOR_QUERY_Z
 }
 
-type FieldDescription struct {
-	name       string
-	tableOid   int32
-	tableAttNo int16
-	typeOid    int32
-	typLen     int16
-	atttypmod  int32
-	format     int16
+func (m *Message) InitReadyForQuery(connState ConnStatus) {
+	if connState != RFQ_IDLE &&
+		connState != RFQ_INTRANS &&
+		connState != RFQ_ERROR {
+		panic(fmt.Errorf("Invalid message type %v", connState))
+	}
+
+	m.InitMsgFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
 }
-
-const (
-	ENC_FMT_TEXT    = 0
-	ENC_FMT_BINARY  = 1
-	ENC_FMT_UNKNOWN = 0
-)
-
-type EncFmt int16
-
-const (
-	INT16 = iota
-	INT32
-	INT64
-	FLOAT32
-	FLOAT64
-	STRING
-	BOOL
-)
-
-type PGType int16
 
 func NewField(name string, dataType PGType) *FieldDescription {
 	switch dataType {
@@ -93,50 +117,92 @@ func NewField(name string, dataType PGType) *FieldDescription {
 	panic("Oh snap")
 }
 
-func NewRowDescription(fields []FieldDescription) *Message {
+func (m *Message) InitRowDescription(fields []FieldDescription) {
 	msgBytes := make([]byte, 0, len(fields)*(10+4+2+4+2+4+2))
-	buff := bytes.NewBuffer(msgBytes)
-	WriteInt16(buff, int16(len(fields)))
+	buf := bytes.NewBuffer(msgBytes)
+	WriteInt16(buf, int16(len(fields)))
 	for _, field := range fields {
-		WriteCString(buff, field.name)
-		WriteInt32(buff, field.tableOid)
-		WriteInt16(buff, field.tableAttNo)
-		WriteInt32(buff, field.typeOid)
-		WriteInt16(buff, field.typLen)
-		WriteInt32(buff, field.atttypmod)
-		WriteInt16(buff, field.format)
+		WriteCString(buf, field.name)
+		WriteInt32(buf, field.tableOid)
+		WriteInt16(buf, field.tableAttNo)
+		WriteInt32(buf, field.typeOid)
+		WriteInt16(buf, field.typLen)
+		WriteInt32(buf, field.atttypmod)
+		WriteInt16(buf, int16(field.format))
 	}
-	return &Message{'T', buff.Bytes()}
+
+	m.InitMsgFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
 }
 
-func NewDataRow(cols []interface{}) *Message {
+func (m *Message) InitDataRow(cols []interface{}) {
 	msgBytes := make([]byte, 0, 2+len(cols)*4)
-	buff := bytes.NewBuffer(msgBytes)
+	buf := bytes.NewBuffer(msgBytes)
 	colCount := int16(len(cols))
-	WriteInt16(buff, colCount)
-	fmt.Printf("making data message with %v columns", colCount)
+	WriteInt16(buf, colCount)
 	for _, val := range cols {
 		// TODO: allow format specification
-		encodeValue(buff, val, ENC_FMT_TEXT)
+		encodeValue(buf, val, ENC_FMT_TEXT)
 	}
-	return &Message{'D', buff.Bytes()}
+
+	m.InitMsgFromBytes(MSG_DATA_ROW_D, buf.Bytes())
 }
 
-func NewCommandComplete(cmdTag string) *Message {
+func (m *Message) InitCommandComplete(cmdTag string) {
 	msgBytes := make([]byte, 0, len([]byte(cmdTag)))
-	buff := bytes.NewBuffer(msgBytes)
-	WriteCString(buff, cmdTag)
-	return &Message{'C', buff.Bytes()}
+	buf := bytes.NewBuffer(msgBytes)
+	WriteCString(buf, cmdTag)
+
+	m.InitMsgFromBytes(MSG_COMMAND_COMPLETE_C, buf.Bytes())
 }
 
-func NewQuery(query string) *Message {
-	msgBytes := make([]byte, 0, len([]byte(query)))
-	buff := bytes.NewBuffer(msgBytes)
-	WriteCString(buff, query)
-	return &Message{'Q', buff.Bytes()}
+func (m *Message) InitQuery(query string) {
+	msgBytes := make([]byte, 0, len([]byte(query))+1)
+	buf := bytes.NewBuffer(msgBytes)
+	WriteCString(buf, query)
+	m.InitMsgFromBytes(MSG_QUERY_Q, buf.Bytes())
 }
 
-func encodeValue(buff *bytes.Buffer, val interface{}, format EncFmt) {
+type Query struct {
+	Query string
+}
+
+func IsQuery(msg *Message) bool {
+	return msg.MsgType() == 'Q'
+}
+
+func ReadQuery(msg *Message) (*Query, error) {
+	qs, err := ReadCString(msg.Payload())
+	if err != nil {
+		return nil, err
+	}
+
+	return &Query{Query: qs}, err
+}
+
+type FieldDescription struct {
+	name       string
+	tableOid   int32
+	tableAttNo int16
+	typeOid    int32
+	typLen     int16
+	atttypmod  int32
+	format     EncFmt
+}
+
+type PGType int16
+
+const (
+	INT16 PGType = iota
+	INT32
+	INT64
+	FLOAT32
+	FLOAT64
+	STRING
+	BOOL
+)
+
+func encodeValue(buff *bytes.Buffer, val interface{},
+	format EncFmt) {
 	switch val.(type) {
 	case int16:
 		EncodeInt16(buff, val.(int16), format)
@@ -153,7 +219,8 @@ func encodeValue(buff *bytes.Buffer, val interface{}, format EncFmt) {
 	case bool:
 		EncodeBool(buff, val.(bool), format)
 	default:
-		panic("Can't encode value")
+		panic(fmt.Errorf("Can't encode value: %#q:%#q\n",
+			reflect.TypeOf(val), val))
 	}
 }
 
@@ -161,51 +228,199 @@ type RowDescription struct {
 	fields []FieldDescription
 }
 
-func ReadRowDescription(msg *Message) *RowDescription {
-	if msg.msgType != 'T' {
+func ReadRowDescription(msg *Message) (
+	rd *RowDescription, err error) {
+	if msg.MsgType() != MSG_ROW_DESCRIPTION_T {
 		panic("Oh snap")
 	}
-	b := bytes.NewBuffer(msg.payload)
-	fieldCount := ReadUInt16(b)
+	b := msg.Payload()
+	fieldCount, err := ReadUint16(b)
+	if err != nil {
+		return nil, err
+	}
+
 	fields := make([]FieldDescription, fieldCount)
 	for i, _ := range fields {
-		name := ReadCString(b)
-		tableOid := ReadInt32(b)
-		tableAttNo := ReadInt16(b)
-		typeOid := ReadInt32(b)
-		typLen := ReadInt16(b)
-		atttypmod := ReadInt32(b)
-		format := ReadInt16(b)
+		name, err := ReadCString(b)
+		if err != nil {
+			return nil, err
+		}
+
+		tableOid, err := ReadInt32(b)
+		if err != nil {
+			return nil, err
+		}
+		tableAttNo, err := ReadInt16(b)
+		if err != nil {
+			return nil, err
+		}
+		typeOid, err := ReadInt32(b)
+		if err != nil {
+			return nil, err
+		}
+		typLen, err := ReadInt16(b)
+		if err != nil {
+			return nil, err
+		}
+		atttypmod, err := ReadInt32(b)
+		if err != nil {
+			return nil, err
+		}
+		format, err := ReadInt16(b)
+		if err != nil {
+			return nil, err
+		}
+
 		fields[i] = FieldDescription{name, tableOid, tableAttNo,
-			typeOid, typLen, atttypmod, format}
+			typeOid, typLen, atttypmod, EncFmt(format)}
 	}
-	return &RowDescription{fields}
+
+	return &RowDescription{fields}, nil
 }
 
 type StartupMessage struct {
-	params map[string]string
+	Params map[string]string
 }
 
-func ReadStartupMessage(msg *Message) *StartupMessage {
-	if msg.msgType != '\000' {
+func IsStartupMessage(msg *Message) bool {
+	return msg.MsgType() == MSG_STARTUP_MESSAGE
+}
+
+func (msg *Message) ReadStartupMessage() (*StartupMessage, error) {
+	if msg.MsgType() != MSG_STARTUP_MESSAGE {
 		panic("Oh snap")
 	}
-	msgLen := len(msg.payload)
-	b := bytes.NewBuffer(msg.payload)
-	protoVer := ReadInt32(b)
+	msgLen := msg.Size()
+	b := msg.Payload()
+
+	protoVer, err := ReadInt32(b)
+	if err != nil {
+		return nil, err
+	}
+
 	if protoVer != 0x00030000 {
 		panic("Oh snap! Unrecognized protocol version number")
 	}
+
 	params := make(map[string]string)
-	for remaining := msgLen - 4; remaining > 1; {
-		key := ReadCString(b)
-		val := ReadCString(b)
-		remaining -= len(key) + len(val) + 2 /* null bytes */
+	for remaining := msgLen - 8; remaining > 1; {
+		key, err := ReadCString(b)
+		if err != nil {
+			return nil, err
+		}
+
+		val, err := ReadCString(b)
+
+		if err != nil {
+			return nil, err
+		}
+
+		remaining -= uint32(len(key) + len(val) + 2) /* null bytes */
 		params[key] = val
 	}
-	terminator, _ := b.ReadByte()
-	if terminator != '\000' {
+
+	// Fidelity check on the startup packet, whereby the last byte
+	// must be a NUL.
+	chrBuf := make([]byte, 1)
+	_, err = io.ReadAtLeast(b, chrBuf, 1)
+
+	if chrBuf[0] != '\000' {
 		panic("Oh snap! WTF byte is this?")
 	}
-	return &StartupMessage{params}
+
+	return &StartupMessage{params}, nil
 }
+
+func (m *Message) InitAuthenticationOk() {
+	m.InitMsgFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
+}
+
+// FEBE Message type constants shamelessly stolen from the pq library.
+//
+// All the constants in this file have a special naming convention:
+// "msg(NameInManual)(characterCode)".  This results in long and
+// awkward constant names, but also makes it easy to determine what
+// the author's intent is quickly in code (consider that both
+// msgDescribeD and msgDataRowD appear on the wire as 'D') as well as
+// debugging against captured wire protocol traffic (where one will
+// only see 'D', but has a sense what state the protocol is in).
+
+type EncFmt int16
+
+const (
+	ENC_FMT_TEXT    EncFmt = 0
+	ENC_FMT_BINARY         = 1
+	ENC_FMT_UNKNOWN        = 0
+)
+
+// Special sub-message coding for Close and Describe
+const (
+	IS_PORTAL = 'P'
+	IS_STMT   = 'S'
+)
+
+// Sub-message character coding that is part of ReadyForQuery
+type ConnStatus byte
+
+const (
+	RFQ_IDLE    ConnStatus = 'I'
+	RFQ_INTRANS            = 'T'
+	RFQ_ERROR              = 'E'
+)
+
+// Message tags
+const (
+	MSG_AUTHENTICATION_OK_R                 byte = 'R'
+	MSG_AUTHENTICATION_CLEARTEXT_PASSWORD_R      = 'R'
+	MSG_AUTHENTICATION_M_D5_PASSWORD_R           = 'R'
+	MSG_AUTHENTICATION_S_C_M_CREDENTIAL_R        = 'R'
+	MSG_AUTHENTICATION_G_S_S_R                   = 'R'
+	MSG_AUTHENTICATION_S_S_P_I_R                 = 'R'
+	MSG_AUTHENTICATION_G_S_S_CONTINUE_R          = 'R'
+	MSG_BACKEND_KEY_DATA_K                       = 'K'
+	MSG_BIND_B                                   = 'B'
+	MSG_BIND_COMPLETE2                           = '2'
+	MSG_CANCEL_REQUEST                           = 129 // see below
+	MSG_CLOSE_C                                  = 'C'
+	MSG_CLOSE_COMPLETE3                          = '3'
+	MSG_COMMAND_COMPLETE_C                       = 'C'
+	MSG_COPY_DATAD                               = 'd'
+	MSG_COPY_DONEC                               = 'c'
+	MSG_COPY_FAILF                               = 'f'
+	MSG_COPY_IN_RESPONSE_G                       = 'G'
+	MSG_COPY_OUT_RESPONSE_H                      = 'H'
+	MSG_COPY_BOTH_RESPONSE_W                     = 'W'
+	MSG_DATA_ROW_D                               = 'D'
+	MSG_DESCRIBE_D                               = 'D'
+	MSG_EMPTY_QUERY_RESPONSE_I                   = 'I'
+	MSG_ERROR_RESPONSE_E                         = 'E'
+	MSG_EXECUTE_E                                = 'E'
+	MSG_FLUSH_H                                  = 'H'
+	MSG_FUNCTION_CALL_F                          = 'F'
+	MSG_FUNCTION_CALL_RESPONSE_V                 = 'V'
+	MSG_NO_DATAN                                 = 'n'
+	MSG_NOTICE_RESPONSE_N                        = 'N'
+	MSG_NOTIFICATION_RESPONSE_A                  = 'A'
+	MSG_PARAMETER_DESCRIPTIONT                   = 't'
+	MSG_PARAMETER_STATUS_S                       = 'S'
+	MSG_PARSE_P                                  = 'P'
+	MSG_PARSE_COMPLETE1                          = '1'
+	MSG_PASSWORD_MESSAGEP                        = 'p'
+	MSG_PORTAL_SUSPENDEDS                        = 's'
+	MSG_QUERY_Q                                  = 'Q'
+	MSG_READY_FOR_QUERY_Z                        = 'Z'
+	MSG_ROW_DESCRIPTION_T                        = 'T'
+	// We treat SSLRequest as a protocol negotiation mechanic
+	// rather than a first-class message, so it does not appear
+	// here
+
+	// StartupMessage and CancelRequest formatted differently:
+	// on the wire, they do not have a formal message type, so
+	// we use the top bit of these 8-bit bytes to flag these
+	// with distinct message types. This is a pretty ugly hack,
+	// but allows us to treat the messages uniformly throughout
+	// most of the system
+	MSG_STARTUP_MESSAGE = 128
+	MSG_SYNC_S          = 'S'
+	MSG_TERMINATE_X     = 'X'
+)
