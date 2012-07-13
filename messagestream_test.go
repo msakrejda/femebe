@@ -12,7 +12,6 @@ func newTestMessageStream(t *testing.T) *MessageStream {
 		Name:         "Test",
 		state:        CONN_NORMAL,
 		msgRemainder: *buf,
-		be:           &binEnc{},
 	}
 
 	return &ms
@@ -21,8 +20,7 @@ func newTestMessageStream(t *testing.T) *MessageStream {
 func TestFullyBuffered(t *testing.T) {
 	ms := newTestMessageStream(t)
 	var m Message
-
-	InitAuthenticationOk(&m)
+	m.InitAuthenticationOk()
 
 	const NUM_MSG = 10
 
@@ -46,12 +44,26 @@ func TestFullyBuffered(t *testing.T) {
 	}
 }
 
+type closableBuffer struct {
+	io.ReadWriter
+}
+
+func (c *closableBuffer) Close() error {
+	// noop, to satisfy interface
+	return nil
+}
+
+func newClosableBuffer(buf *bytes.Buffer) *closableBuffer {
+	return &closableBuffer{buf}
+}
+
 func TestPromise(t *testing.T) {
 	// Write a complete AuthenticationOk message to a buffer.
 	var m Message
-	InitAuthenticationOk(&m)
 
-	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	m.InitAuthenticationOk()
+
+	buf := newClosableBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 	m.WriteTo(buf)
 
 	// Slice it apart: the five-byte prefix is a minimal message
@@ -66,7 +78,7 @@ func TestPromise(t *testing.T) {
 
 	// 'buf' is in the right spot to form the rest of the
 	// Promise-style message.
-	ms.r = buf
+	ms.rw = buf
 
 	// 5 bytes is enough to have a next message.
 	if !ms.HasNext() {
@@ -95,9 +107,9 @@ func TestPromise(t *testing.T) {
 func TestIncompleteMessage(t *testing.T) {
 	// Write a complete AuthenticationOk message to a buffer.
 	var m Message
-	InitAuthenticationOk(&m)
+	m.InitAuthenticationOk()
 
-	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	buf := newClosableBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 	m.WriteTo(buf)
 
 	// Slice it apart: a four-byte prefix is not enough to form a
@@ -108,7 +120,7 @@ func TestIncompleteMessage(t *testing.T) {
 	ms := newTestMessageStream(t)
 	ms.msgRemainder.Write(header)
 
-	ms.r = buf
+	ms.rw = buf
 
 	// Only four bytes are in the MessageStream's buffer, and
 	// that's not enough to form a Message without blocking.
