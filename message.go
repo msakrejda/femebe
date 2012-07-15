@@ -57,7 +57,18 @@ func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
 	}
 
 	// Write the actual payload
-	nPayload, err := io.Copy(w, m.Payload())
+	var nPayload int64
+
+	if m.future == nil {
+		// Fast path for fully buffered messages
+		var nPayloadSm int
+		nPayloadSm, err = w.Write(m.buffered.Bytes())
+		nPayload = int64(nPayloadSm)
+	} else {
+		// Slow generic path
+		nPayload, err = io.Copy(w, m.Payload())
+	}
+
 	totalN += nPayload
 	return totalN, err
 }
