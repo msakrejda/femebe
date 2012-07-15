@@ -71,11 +71,7 @@ func ReadUint32(r io.Reader) (ret uint32, err error) {
 }
 
 func ReadUint32FromBuffer(r *bytes.Buffer) uint32 {
-	var be [4]byte
-	valBytes := be[0:4]
-	r.Read(valBytes)
-
-	return binary.BigEndian.Uint32(valBytes)
+	return binary.BigEndian.Uint32(r.Next(4))
 }
 
 func ReadCString(r io.Reader) (s string, err error) {
