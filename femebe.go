@@ -115,6 +115,7 @@ func (c *MessageStream) Next(dst *Message) error {
 	case CONN_STARTUP:
 		msgSz, err := ReadUint32(c.rw)
 		if err != nil {
+			c.err = err
 			c.state = CONN_ERR
 			return err
 		}
@@ -122,38 +123,24 @@ func (c *MessageStream) Next(dst *Message) error {
 		remainingSz := msgSz - 4
 
 		if remainingSz > MAX_STARTUP_PACKET_LENGTH {
-			panic(errors.New("Rejecting oversized startup packet"))
-		}
-		if remainingSz < 4 {
+			c.err = fmt.Errorf(
+				"Rejecting oversized startup packet: got %v",
+				msgSz)
+			c.state = CONN_ERR
+			return err
+		} else if remainingSz < 4 {
 			// We expect all initialization messages to
 			// have at least a 4-byte header
-			panic(fmt.Errorf("Expected message of at least 4 bytes; got %v",
-				remainingSz))
-		}
-		headerBytes := make([]byte, 4)
-		headerRead, err := io.ReadFull(c.rw, headerBytes)
-		var headerType byte
-		if headerRead != 4 {
-			panic(fmt.Errorf("Could not read startup message header;"+
-				" expected 4 bytes, only got %v", headerRead))
-		}
-		if bytes.HasPrefix(headerBytes, []byte{0x00, 0x03, 0x00, 0x00}) {
-			headerType = MSG_STARTUP_MESSAGE
-		} else if bytes.HasPrefix(headerBytes, []byte{0x04, 0xd2, 0x16, 0x2e}) {
-			headerType = MSG_CANCEL_REQUEST
-		} else {
-			panic(fmt.Errorf("Unexpected startup message header '%v'",
-				headerBytes))
+			c.err = fmt.Errorf(
+				"Expected message of at least 4 bytes; got %v",
+				remainingSz)
+			c.state = CONN_ERR
+			return err
 		}
 
-		hr := bytes.NewReader(headerBytes)
-		startupReader := io.MultiReader(hr, c.rw)
-		buf := bytes.Buffer{}
-		_, err = io.CopyN(&buf, startupReader, int64(remainingSz))
-
-		dst.InitFromBytes(headerType, buf.Bytes())
-
-		if err != nil {
+		dst.InitPromiseMsg(MSG_TYPE_FIRST, msgSz, []byte{}, c.rw)
+		if err := dst.Buffer(); err != nil {
+			c.err = err
 			c.state = CONN_ERR
 			return err
 		}
