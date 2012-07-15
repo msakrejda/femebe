@@ -24,7 +24,7 @@ const MSG_HEADER_MIN_SIZE = 5
 const MAX_STARTUP_PACKET_LENGTH = 10000
 
 func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
-	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	buf := bytes.NewBuffer(make([]byte, 0, 8192))
 
 	return &MessageStream{
 		Name:         name,
@@ -148,8 +148,11 @@ func (c *MessageStream) Next(dst *Message) error {
 
 		hr := bytes.NewReader(headerBytes)
 		startupReader := io.MultiReader(hr, c.rw)
-		dst.InitFullyBufferedMsg(headerType, msgSz)
-		_, err = io.CopyN(&dst.buffered, startupReader, int64(remainingSz))
+		buf := bytes.Buffer{}
+		_, err = io.CopyN(&buf, startupReader, int64(remainingSz))
+
+		dst.InitFromBytes(headerType, buf.Bytes())
+
 		if err != nil {
 			c.state = CONN_ERR
 			return err
@@ -174,27 +177,22 @@ func (c *MessageStream) Next(dst *Message) error {
 				// Promise-mesage that hybridizes the
 				// already-buffered data and the
 				// network.
-				futureBytes := int64(remainingSz -
-					uint32(c.msgRemainder.Len()))
-				rest := io.LimitReader(c.rw, futureBytes)
-				all := io.MultiReader(&c.msgRemainder, rest)
-
-				dst.InitPromiseMsg(msgType, msgSz, all)
+				//
+				// Copy bytes in the buffer into new
+				// memory as it is about to be
+				// recycled, which would cause corrupt
+				// state.
+				trailing := make([]byte, c.msgRemainder.Len())
+				c.msgRemainder.Read(trailing)
+				dst.InitPromiseMsg(msgType, msgSz,
+					trailing, c.rw)
 				return nil
 			} else {
-				// The whole message is in the buffer,
-				// so optimize this down to some
-				// memory copying, avoiding the need
-				// for a more complex Promise-style
-				// message.
-				dst.InitFullyBufferedMsg(msgType, msgSz)
-				_, err := dst.buffered.Write(
+				// The whole message is in the buffer.
+				// Address it by-reference rather than
+				// copying it.
+				dst.InitFromBytes(msgType,
 					c.msgRemainder.Next(int(remainingSz)))
-				if err != nil {
-					c.state = CONN_ERR
-					return err
-				}
-
 				return nil
 			}
 		}
