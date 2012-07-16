@@ -13,11 +13,9 @@ type Message struct {
 	msgType byte
 	sz      uint32
 
-	// Tracks the state of the Payload stream's progression
-	payloadReader io.Reader
-
-	// Message contents buffered in memory
-	buffered bytes.Buffer
+	buffered Reader
+	future   io.Reader
+	union    io.Reader
 }
 
 func (m *Message) MsgType() byte {
@@ -25,7 +23,7 @@ func (m *Message) MsgType() byte {
 }
 
 func (m *Message) Payload() io.Reader {
-	return m.payloadReader
+	return m.union
 }
 
 func (m *Message) Size() uint32 {
@@ -59,28 +57,43 @@ func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
 	}
 
 	// Write the actual payload
-	nPayload, err := io.Copy(w, m.Payload())
+	var nPayload int64
+
+	if m.future == nil {
+		// Fast path for fully buffered messages
+		var nPayloadSm int
+		nPayloadSm, err = w.Write(m.buffered.Bytes())
+		nPayload = int64(nPayloadSm)
+	} else {
+		// Slow generic path
+		nPayload, err = io.Copy(w, m.Payload())
+	}
+
 	totalN += nPayload
 	return totalN, err
 }
 
-func (m *Message) InitFullyBufferedMsg(msgType byte, size uint32) {
+func (m *Message) baseInitMessage(msgType byte, size uint32) {
 	m.msgType = msgType
 	m.sz = size
-	m.buffered.Reset()
-	m.payloadReader = &m.buffered
 }
 
-func (m *Message) InitMsgFromBytes(msgType byte, payload []byte) {
-	m.InitFullyBufferedMsg(msgType, uint32(len(payload))+4)
-	m.buffered.Write(payload)
+func (m *Message) InitFromBytes(msgType byte, payload []byte) {
+	m.baseInitMessage(msgType, uint32(len(payload))+4)
+	m.future = nil
+	m.buffered.InitReader(payload)
+	m.union = &m.buffered
 }
 
-func (m *Message) InitPromiseMsg(msgType byte, size uint32, r io.Reader) {
-	m.msgType = msgType
-	m.sz = size
-	m.payloadReader = r
-	m.buffered = bytes.Buffer{}
+func (m *Message) InitPromiseMsg(msgType byte, size uint32,
+	buffered []byte, r io.Reader) {
+	m.baseInitMessage(msgType, size)
+	m.buffered.InitReader(buffered)
+
+	remaining := int64(size - 4 - uint32(len(buffered)))
+	m.future = io.LimitReader(r, remaining)
+
+	m.union = io.MultiReader(&m.buffered, m.future)
 }
 
 func IsReadyForQuery(msg *Message) bool {
@@ -94,7 +107,7 @@ func (m *Message) InitReadyForQuery(connState ConnStatus) {
 		panic(fmt.Errorf("Invalid message type %v", connState))
 	}
 
-	m.InitMsgFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
+	m.InitFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
 }
 
 func NewField(name string, dataType PGType) *FieldDescription {
@@ -131,7 +144,7 @@ func (m *Message) InitRowDescription(fields []FieldDescription) {
 		WriteInt16(buf, int16(field.format))
 	}
 
-	m.InitMsgFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
+	m.InitFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
 }
 
 func (m *Message) InitDataRow(cols []interface{}) {
@@ -144,7 +157,7 @@ func (m *Message) InitDataRow(cols []interface{}) {
 		encodeValue(buf, val, ENC_FMT_TEXT)
 	}
 
-	m.InitMsgFromBytes(MSG_DATA_ROW_D, buf.Bytes())
+	m.InitFromBytes(MSG_DATA_ROW_D, buf.Bytes())
 }
 
 func (m *Message) InitCommandComplete(cmdTag string) {
@@ -152,14 +165,14 @@ func (m *Message) InitCommandComplete(cmdTag string) {
 	buf := bytes.NewBuffer(msgBytes)
 	WriteCString(buf, cmdTag)
 
-	m.InitMsgFromBytes(MSG_COMMAND_COMPLETE_C, buf.Bytes())
+	m.InitFromBytes(MSG_COMMAND_COMPLETE_C, buf.Bytes())
 }
 
 func (m *Message) InitQuery(query string) {
 	msgBytes := make([]byte, 0, len([]byte(query))+1)
 	buf := bytes.NewBuffer(msgBytes)
 	WriteCString(buf, query)
-	m.InitMsgFromBytes(MSG_QUERY_Q, buf.Bytes())
+	m.InitFromBytes(MSG_QUERY_Q, buf.Bytes())
 }
 
 type Query struct {
@@ -332,7 +345,7 @@ func (msg *Message) ReadStartupMessage() (*StartupMessage, error) {
 }
 
 func (m *Message) InitAuthenticationOk() {
-	m.InitMsgFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
+	m.InitFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
 }
 
 // FEBE Message type constants shamelessly stolen from the pq library.
