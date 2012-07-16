@@ -1,4 +1,4 @@
-package femebe
+package pgproto
 
 import (
 	"bytes"

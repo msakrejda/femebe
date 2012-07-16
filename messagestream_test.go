@@ -30,7 +30,7 @@ func TestFullyBuffered(t *testing.T) {
 	}
 
 	// Read them back out
-	for i := 0; i < NUM_MSG-1; i += 1 {
+	for i := 0; i < NUM_MSG; i += 1 {
 		if !ms.HasNext() {
 			t.Fatal()
 		}

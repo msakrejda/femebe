@@ -105,11 +105,7 @@ func ReadUint32(r io.Reader) (ret uint32, err error) {
 // ReadUint32FromBuffer reads a 32-bit unsigned integer from the
 // bytes.Buffer r in big-endian byte order.
 func ReadUint32FromBuffer(r *bytes.Buffer) uint32 {
-	var be [4]byte
-	valBytes := be[0:4]
-	r.Read(valBytes)
-
-	return binary.BigEndian.Uint32(valBytes)
+	return binary.BigEndian.Uint32(r.Next(4))
 }
 
 // ReadCString reads a null-terminated string in UTF-8 encoding from
