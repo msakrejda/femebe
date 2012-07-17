@@ -2,13 +2,14 @@ package pgproto
 
 import (
 	"bytes"
+	"femebe"
 	"fmt"
 )
 
 func encodeValText(buf *bytes.Buffer,
 	val interface{}, format string) {
 	result := fmt.Sprintf(format, val)
-	WriteInt32(buf, int32(len([]byte(result))))
+	femebe.WriteInt32(buf, int32(len([]byte(result))))
 	buf.WriteString(result)
 }
 
@@ -16,8 +17,8 @@ func EncodeInt16(buff *bytes.Buffer, val int16, format EncFmt) {
 	if format == ENC_FMT_TEXT {
 		encodeValText(buff, val, "%d")
 	} else if format == ENC_FMT_BINARY {
-		WriteInt32(buff, 2)
-		WriteInt16(buff, val)
+		femebe.WriteInt32(buff, 2)
+		femebe.WriteInt16(buff, val)
 	} else {
 		panic("Unknown format")
 	}

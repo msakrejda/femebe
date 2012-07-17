@@ -1,17 +1,25 @@
 package pgproto
 
+import (
+	"bytes"
+	. "femebe"
+	"fmt"
+	"io"
+	"reflect"
+)
+
 func IsReadyForQuery(msg *Message) bool {
 	return msg.MsgType() == MSG_READY_FOR_QUERY_Z
 }
 
-func (m *Message) InitReadyForQuery(connState ConnStatus) {
+func InitReadyForQuery(m *Message, connState ConnStatus) {
 	if connState != RFQ_IDLE &&
 		connState != RFQ_INTRANS &&
 		connState != RFQ_ERROR {
 		panic(fmt.Errorf("Invalid message type %v", connState))
 	}
 
-	m.InitMsgFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
+	m.InitFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
 }
 
 func NewField(name string, dataType PGType) *FieldDescription {
@@ -34,49 +42,49 @@ func NewField(name string, dataType PGType) *FieldDescription {
 	panic("Oh snap")
 }
 
-func (m *Message) InitRowDescription(fields []FieldDescription) {
+func InitRowDescription(m *Message, fields []FieldDescription) {
 	msgBytes := make([]byte, 0, len(fields)*(10+4+2+4+2+4+2))
 	buf := bytes.NewBuffer(msgBytes)
-	WriteInt16(buf, int16(len(fields)))
+	femebe.WriteInt16(buf, int16(len(fields)))
 	for _, field := range fields {
-		WriteCString(buf, field.name)
-		WriteInt32(buf, field.tableOid)
-		WriteInt16(buf, field.tableAttNo)
-		WriteInt32(buf, field.typeOid)
-		WriteInt16(buf, field.typLen)
-		WriteInt32(buf, field.atttypmod)
-		WriteInt16(buf, int16(field.format))
+		femebe.WriteCString(buf, field.name)
+		femebe.WriteInt32(buf, field.tableOid)
+		femebe.WriteInt16(buf, field.tableAttNo)
+		femebe.WriteInt32(buf, field.typeOid)
+		femebe.WriteInt16(buf, field.typLen)
+		femebe.WriteInt32(buf, field.atttypmod)
+		femebe.WriteInt16(buf, int16(field.format))
 	}
 
-	m.InitMsgFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
+	m.InitFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
 }
 
-func (m *Message) InitDataRow(cols []interface{}) {
+func InitDataRow(m *Message, cols []interface{}) {
 	msgBytes := make([]byte, 0, 2+len(cols)*4)
 	buf := bytes.NewBuffer(msgBytes)
 	colCount := int16(len(cols))
-	WriteInt16(buf, colCount)
+	femebe.WriteInt16(buf, colCount)
 	for _, val := range cols {
 		// TODO: allow format specification
 		encodeValue(buf, val, ENC_FMT_TEXT)
 	}
 
-	m.InitMsgFromBytes(MSG_DATA_ROW_D, buf.Bytes())
+	m.InitFromBytes(MSG_DATA_ROW_D, buf.Bytes())
 }
 
-func (m *Message) InitCommandComplete(cmdTag string) {
+func InitCommandComplete(m *Message, cmdTag string) {
 	msgBytes := make([]byte, 0, len([]byte(cmdTag)))
 	buf := bytes.NewBuffer(msgBytes)
-	WriteCString(buf, cmdTag)
+	femebe.WriteCString(buf, cmdTag)
 
-	m.InitMsgFromBytes(MSG_COMMAND_COMPLETE_C, buf.Bytes())
+	m.InitFromBytes(MSG_COMMAND_COMPLETE_C, buf.Bytes())
 }
 
-func (m *Message) InitQuery(query string) {
+func InitQuery(m *Message, query string) {
 	msgBytes := make([]byte, 0, len([]byte(query))+1)
 	buf := bytes.NewBuffer(msgBytes)
-	WriteCString(buf, query)
-	m.InitMsgFromBytes(MSG_QUERY_Q, buf.Bytes())
+	femebe.WriteCString(buf, query)
+	m.InitFromBytes(MSG_QUERY_Q, buf.Bytes())
 }
 
 type Query struct {
@@ -88,7 +96,7 @@ func IsQuery(msg *Message) bool {
 }
 
 func ReadQuery(msg *Message) (*Query, error) {
-	qs, err := ReadCString(msg.Payload())
+	qs, err := femebe.ReadCString(msg.Payload())
 	if err != nil {
 		return nil, err
 	}
@@ -151,39 +159,39 @@ func ReadRowDescription(msg *Message) (
 		panic("Oh snap")
 	}
 	b := msg.Payload()
-	fieldCount, err := ReadUint16(b)
+	fieldCount, err := femebe.ReadUint16(b)
 	if err != nil {
 		return nil, err
 	}
 
 	fields := make([]FieldDescription, fieldCount)
 	for i, _ := range fields {
-		name, err := ReadCString(b)
+		name, err := femebe.ReadCString(b)
 		if err != nil {
 			return nil, err
 		}
 
-		tableOid, err := ReadInt32(b)
+		tableOid, err := femebe.ReadInt32(b)
 		if err != nil {
 			return nil, err
 		}
-		tableAttNo, err := ReadInt16(b)
+		tableAttNo, err := femebe.ReadInt16(b)
 		if err != nil {
 			return nil, err
 		}
-		typeOid, err := ReadInt32(b)
+		typeOid, err := femebe.ReadInt32(b)
 		if err != nil {
 			return nil, err
 		}
-		typLen, err := ReadInt16(b)
+		typLen, err := femebe.ReadInt16(b)
 		if err != nil {
 			return nil, err
 		}
-		atttypmod, err := ReadInt32(b)
+		atttypmod, err := femebe.ReadInt32(b)
 		if err != nil {
 			return nil, err
 		}
-		format, err := ReadInt16(b)
+		format, err := femebe.ReadInt16(b)
 		if err != nil {
 			return nil, err
 		}
@@ -195,8 +203,8 @@ func ReadRowDescription(msg *Message) (
 	return &RowDescription{fields}, nil
 }
 
-func (m *Message) InitAuthenticationOk() {
-	m.InitMsgFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
+func InitAuthenticationOk(m *Message) {
+	m.InitFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
 }
 
 // FEBE Message type constants shamelessly stolen from the pq library.
