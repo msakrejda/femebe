@@ -24,7 +24,7 @@ const MSG_HEADER_MIN_SIZE = 5
 const MAX_STARTUP_PACKET_LENGTH = 10000
 
 func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
-	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	buf := bytes.NewBuffer(make([]byte, 0, 8192))
 
 	return &MessageStream{
 		Name:         name,
@@ -115,6 +115,7 @@ func (c *MessageStream) Next(dst *Message) error {
 	case CONN_STARTUP:
 		msgSz, err := ReadUint32(c.rw)
 		if err != nil {
+			c.err = err
 			c.state = CONN_ERR
 			return err
 		}
@@ -122,35 +123,24 @@ func (c *MessageStream) Next(dst *Message) error {
 		remainingSz := msgSz - 4
 
 		if remainingSz > MAX_STARTUP_PACKET_LENGTH {
-			panic(errors.New("Rejecting oversized startup packet"))
-		}
-		if remainingSz < 4 {
+			c.err = fmt.Errorf(
+				"Rejecting oversized startup packet: got %v",
+				msgSz)
+			c.state = CONN_ERR
+			return err
+		} else if remainingSz < 4 {
 			// We expect all initialization messages to
 			// have at least a 4-byte header
-			panic(fmt.Errorf("Expected message of at least 4 bytes; got %v",
-				remainingSz))
-		}
-		headerBytes := make([]byte, 4)
-		headerRead, err := io.ReadFull(c.rw, headerBytes)
-		var headerType byte
-		if headerRead != 4 {
-			panic(fmt.Errorf("Could not read startup message header;"+
-				" expected 4 bytes, only got %v", headerRead))
-		}
-		if bytes.HasPrefix(headerBytes, []byte{0x00, 0x03, 0x00, 0x00}) {
-			headerType = MSG_STARTUP_MESSAGE
-		} else if bytes.HasPrefix(headerBytes, []byte{0x04, 0xd2, 0x16, 0x2e}) {
-			headerType = MSG_CANCEL_REQUEST
-		} else {
-			panic(fmt.Errorf("Unexpected startup message header '%v'",
-				headerBytes))
+			c.err = fmt.Errorf(
+				"Expected message of at least 4 bytes; got %v",
+				remainingSz)
+			c.state = CONN_ERR
+			return err
 		}
 
-		hr := bytes.NewReader(headerBytes)
-		startupReader := io.MultiReader(hr, c.rw)
-		dst.InitFullyBufferedMsg(headerType, msgSz)
-		_, err = io.CopyN(&dst.buffered, startupReader, int64(remainingSz))
-		if err != nil {
+		dst.InitPromiseMsg(MSG_TYPE_FIRST, msgSz, []byte{}, c.rw)
+		if err := dst.Buffer(); err != nil {
+			c.err = err
 			c.state = CONN_ERR
 			return err
 		}
@@ -174,27 +164,22 @@ func (c *MessageStream) Next(dst *Message) error {
 				// Promise-mesage that hybridizes the
 				// already-buffered data and the
 				// network.
-				futureBytes := int64(remainingSz -
-					uint32(c.msgRemainder.Len()))
-				rest := io.LimitReader(c.rw, futureBytes)
-				all := io.MultiReader(&c.msgRemainder, rest)
-
-				dst.InitPromiseMsg(msgType, msgSz, all)
+				//
+				// Copy bytes in the buffer into new
+				// memory as it is about to be
+				// recycled, which would cause corrupt
+				// state.
+				trailing := make([]byte, c.msgRemainder.Len())
+				c.msgRemainder.Read(trailing)
+				dst.InitPromiseMsg(msgType, msgSz,
+					trailing, c.rw)
 				return nil
 			} else {
-				// The whole message is in the buffer,
-				// so optimize this down to some
-				// memory copying, avoiding the need
-				// for a more complex Promise-style
-				// message.
-				dst.InitFullyBufferedMsg(msgType, msgSz)
-				_, err := dst.buffered.Write(
+				// The whole message is in the buffer.
+				// Address it by-reference rather than
+				// copying it.
+				dst.InitFromBytes(msgType,
 					c.msgRemainder.Next(int(remainingSz)))
-				if err != nil {
-					c.state = CONN_ERR
-					return err
-				}
-
 				return nil
 			}
 		}
