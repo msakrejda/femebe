@@ -7,10 +7,6 @@ import (
 	"reflect"
 )
 
-func IsReadyForQuery(msg *Message) bool {
-	return msg.MsgType() == MSG_READY_FOR_QUERY_Z
-}
-
 func InitReadyForQuery(m *Message, connState ConnStatus) {
 	if connState != RFQ_IDLE &&
 		connState != RFQ_INTRANS &&
@@ -78,10 +74,6 @@ func InitQuery(m *Message, query string) {
 
 type Query struct {
 	Query string
-}
-
-func IsQuery(msg *Message) bool {
-	return msg.MsgType() == 'Q'
 }
 
 func ReadQuery(msg *Message) (*Query, error) {
