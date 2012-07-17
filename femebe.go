@@ -139,7 +139,7 @@ func (c *MessageStream) Next(dst *Message) error {
 		}
 
 		dst.InitPromiseMsg(MSG_TYPE_FIRST, msgSz, []byte{}, c.rw)
-		if err := dst.Buffer(); err != nil {
+		if err := dst.Force(); err != nil {
 			c.err = err
 			c.state = CONN_ERR
 			return err

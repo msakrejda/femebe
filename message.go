@@ -38,7 +38,7 @@ func (m *Message) IsBuffered() bool {
 	return m.future == nil
 }
 
-func (m *Message) Buffer() error {
+func (m *Message) Force() error {
 	if m.IsBuffered() {
 		return nil
 	}
