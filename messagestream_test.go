@@ -6,6 +6,10 @@ import (
 	"testing"
 )
 
+func InitBogon(m *Message) {
+	m.InitFromBytes('B', []byte{0, 0, 0, 0})
+}
+
 func newTestMessageStream(t *testing.T) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	ms := MessageStream{
@@ -20,7 +24,7 @@ func newTestMessageStream(t *testing.T) *MessageStream {
 func TestFullyBuffered(t *testing.T) {
 	ms := newTestMessageStream(t)
 	var m Message
-	m.InitAuthenticationOk()
+	InitBogon(&m)
 
 	const NUM_MSG = 10
 
@@ -60,8 +64,7 @@ func newClosableBuffer(buf *bytes.Buffer) *closableBuffer {
 func TestPromise(t *testing.T) {
 	// Write a complete AuthenticationOk message to a buffer.
 	var m Message
-
-	m.InitAuthenticationOk()
+	InitBogon(&m)
 
 	buf := newClosableBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 	m.WriteTo(buf)
@@ -107,7 +110,7 @@ func TestPromise(t *testing.T) {
 func TestIncompleteMessage(t *testing.T) {
 	// Write a complete AuthenticationOk message to a buffer.
 	var m Message
-	m.InitAuthenticationOk()
+	InitBogon(&m)
 
 	buf := newClosableBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 	m.WriteTo(buf)
