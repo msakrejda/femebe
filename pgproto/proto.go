@@ -127,26 +127,31 @@ const (
 )
 
 func encodeValue(buff *bytes.Buffer, val interface{},
-	format EncFmt) {
-	switch val.(type) {
-	case int16:
-		EncodeInt16(buff, val.(int16), format)
-	case int32:
-		EncodeInt32(buff, val.(int32), format)
-	case int64:
-		EncodeInt64(buff, val.(int64), format)
-	case float32:
-		EncodeFloat32(buff, val.(float32), format)
-	case float64:
-		EncodeFloat64(buff, val.(float64), format)
-	case string:
-		EncodeString(buff, val.(string), format)
-	case bool:
-		EncodeBool(buff, val.(bool), format)
-	default:
-		panic(fmt.Errorf("Can't encode value: %#q:%#q\n",
-			reflect.TypeOf(val), val))
+	format EncFmt) (err error) {
+	if format == ENC_FMT_TEXT {
+		switch val.(type) {
+		case int16:
+			TextEncodeInt16(buff, val.(int16))
+		case int32:
+			TextEncodeInt32(buff, val.(int32))
+		case int64:
+			TextEncodeInt64(buff, val.(int64))
+		case float32:
+			TextEncodeFloat32(buff, val.(float32))
+		case float64:
+			TextEncodeFloat64(buff, val.(float64))
+		case string:
+			TextEncodeString(buff, val.(string))
+		case bool:
+			TextEncodeBool(buff, val.(bool))
+		default:
+			return fmt.Errorf("Can't encode value: %#q:%#q\n",
+				reflect.TypeOf(val), val)
+		}
+	} else {
+		return fmt.Errorf("Can't encode in format %v")
 	}
+	return nil
 }
 
 type RowDescription struct {

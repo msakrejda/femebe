@@ -13,61 +13,35 @@ func encodeValText(buf *bytes.Buffer,
 	buf.WriteString(result)
 }
 
-func EncodeInt16(buff *bytes.Buffer, val int16, format EncFmt) {
-	if format == ENC_FMT_TEXT {
-		encodeValText(buff, val, "%d")
-	} else if format == ENC_FMT_BINARY {
+func BinEncodeInt16(buff *bytes.Buffer, val int16) {
 		femebe.WriteInt32(buff, 2)
 		femebe.WriteInt16(buff, val)
-	} else {
-		panic("Unknown format")
-	}
 }
 
-func EncodeInt32(buff *bytes.Buffer, val int32, format EncFmt) {
-	if format == ENC_FMT_TEXT {
-		encodeValText(buff, val, "%d")
-	} else {
-		panic("Unknown format")
-	}
+func TextEncodeInt16(buff *bytes.Buffer, val int16) {
+	encodeValText(buff, val, "%d")
 }
 
-func EncodeInt64(buff *bytes.Buffer, val int64, format EncFmt) {
-	if format == ENC_FMT_TEXT {
-		encodeValText(buff, val, "%d")
-	} else {
-		panic("Unknown format")
-	}
+func TextEncodeInt32(buff *bytes.Buffer, val int32) {
+	encodeValText(buff, val, "%d")
 }
 
-func EncodeFloat32(buff *bytes.Buffer, val float32, format EncFmt) {
-	if format == ENC_FMT_TEXT {
-		encodeValText(buff, val, "%e")
-	} else {
-		panic("Unknown format")
-	}
+func TextEncodeInt64(buff *bytes.Buffer, val int64) {
+	encodeValText(buff, val, "%d")
 }
 
-func EncodeFloat64(buff *bytes.Buffer, val float64, format EncFmt) {
-	if format == ENC_FMT_TEXT {
-		encodeValText(buff, val, "%e")
-	} else {
-		panic("Unknown format")
-	}
+func TextEncodeFloat32(buff *bytes.Buffer, val float32) {
+	encodeValText(buff, val, "%e")
 }
 
-func EncodeString(buff *bytes.Buffer, val string, format EncFmt) {
-	if format == ENC_FMT_TEXT {
-		encodeValText(buff, val, "%s")
-	} else {
-		panic("Unknown format")
-	}
+func TextEncodeFloat64(buff *bytes.Buffer, val float64) {
+	encodeValText(buff, val, "%e")
 }
 
-func EncodeBool(buff *bytes.Buffer, val bool, format EncFmt) {
-	if format == ENC_FMT_TEXT {
-		encodeValText(buff, val, "%t")
-	} else {
-		panic("Unknown format")
-	}
+func TextEncodeString(buff *bytes.Buffer, val string) {
+	encodeValText(buff, val, "%s")
+}
+
+func TextEncodeBool(buff *bytes.Buffer, val bool) {
+	encodeValText(buff, val, "%t")
 }
