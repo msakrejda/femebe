@@ -138,7 +138,7 @@ func (c *MessageStream) Next(dst *Message) error {
 			return err
 		}
 
-		dst.InitPromiseMsg(MSG_TYPE_FIRST, msgSz, []byte{}, c.rw)
+		dst.InitPromise(MSG_TYPE_FIRST, msgSz, []byte{}, c.rw)
 		if err := dst.Force(); err != nil {
 			c.err = err
 			c.state = CONN_ERR
@@ -171,7 +171,7 @@ func (c *MessageStream) Next(dst *Message) error {
 				// state.
 				trailing := make([]byte, c.msgRemainder.Len())
 				c.msgRemainder.Read(trailing)
-				dst.InitPromiseMsg(msgType, msgSz,
+				dst.InitPromise(msgType, msgSz,
 					trailing, c.rw)
 				return nil
 			} else {
