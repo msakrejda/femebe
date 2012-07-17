@@ -22,24 +22,9 @@ func InitReadyForQuery(m *Message, connState ConnStatus) {
 	m.InitFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
 }
 
-func NewField(name string, dataType PGType) *FieldDescription {
-	switch dataType {
-	case INT16:
-		return &FieldDescription{name, 0, 0, 21, 2, -1, ENC_FMT_TEXT}
-	case INT32:
-		return &FieldDescription{name, 0, 0, 23, 4, -1, ENC_FMT_TEXT}
-	case INT64:
-		return &FieldDescription{name, 0, 0, 20, 8, -1, ENC_FMT_TEXT}
-	case FLOAT32:
-		return &FieldDescription{name, 0, 0, 700, 4, -1, ENC_FMT_TEXT}
-	case FLOAT64:
-		return &FieldDescription{name, 0, 0, 701, 8, -1, ENC_FMT_TEXT}
-	case STRING:
-		return &FieldDescription{name, 0, 0, 25, -1, -1, ENC_FMT_TEXT}
-	case BOOL:
-		return &FieldDescription{name, 0, 0, 16, 1, -1, ENC_FMT_TEXT}
-	}
-	panic("Oh snap")
+func NewField(name string, typOid int32) *FieldDescription {
+	typSize := TypSize(typoid)
+	return &FieldDescription{name, 0, 0, typOid, typSize, -1, ENC_FMT_TEXT}
 }
 
 func InitRowDescription(m *Message, fields []FieldDescription) {
@@ -113,18 +98,6 @@ type FieldDescription struct {
 	atttypmod  int32
 	format     EncFmt
 }
-
-type PGType int16
-
-const (
-	INT16 PGType = iota
-	INT32
-	INT64
-	FLOAT32
-	FLOAT64
-	STRING
-	BOOL
-)
 
 func encodeValue(buff *bytes.Buffer, val interface{},
 	format EncFmt) (err error) {
