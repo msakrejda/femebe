@@ -52,6 +52,29 @@ func TestWriteInt32(t *testing.T) {
 	verifyWriteInt32(-1, []byte{0xFF, 0xFF, 0xFF, 0xFF}, t)
 }
 
+func verifyWriteUint32(val uint32, expected []byte, t *testing.T) {
+	w := new(bytes.Buffer)
+	_, err := WriteUint32(w, val)
+	if err != nil {
+		t.Errorf("Unexpected error in encoding %v", err)
+	}
+	written := w.Bytes()
+	result := bytes.Compare(written, expected)
+	if result != 0 {
+		t.Errorf("Expected %v; got %v", expected, written)
+	}
+}
+
+func TestWriteUint32(t *testing.T) {
+	verifyWriteUint32(0, []byte{0, 0, 0, 0}, t)
+	verifyWriteUint32(1, []byte{0, 0, 0, 1}, t)
+	verifyWriteUint32(0xFF, []byte{0, 0, 0, 0xFF}, t)
+	verifyWriteUint32(0xFFFF, []byte{0, 0, 0xFF, 0xFF}, t)
+	verifyWriteUint32(0xFFFFFF, []byte{0, 0xFF, 0xFF, 0xFF}, t)
+	verifyWriteUint32(0x7FFFFFFF, []byte{0x7F, 0xFF, 0xFF, 0xFF}, t)
+	verifyWriteUint32(0xFFFFFFFF, []byte{0xFF, 0xFF, 0xFF, 0xFF}, t)
+}
+
 func verifyWriteCString(val string, expected []byte, t *testing.T) {
 	w := new(bytes.Buffer)
 	_, err := WriteCString(w, val)

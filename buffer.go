@@ -22,9 +22,17 @@ func WriteInt16(w io.Writer, val int16) (n int, err error) {
 // and any error encountered in writing. Like io.Writer, it will
 // return a non-nil error if not all bytes are written.
 func WriteInt32(w io.Writer, val int32) (n int, err error) {
+	return WriteUint32(w, uint32(val))
+}
+
+// WriteUint32 writes the bytes of the uint32 val to the io.Writer w
+// in big-endian byte order. It returns the number of bytes written
+// and any error encountered in writing. Like io.Writer, it will
+// return a non-nil error if not all bytes are written.
+func WriteUint32(w io.Writer, val uint32) (n int, err error) {
 	var be [4]byte
 	valBytes := be[0:4]
-	binary.BigEndian.PutUint32(valBytes, uint32(val))
+	binary.BigEndian.PutUint32(valBytes, val)
 
 	return w.Write(valBytes)
 }
