@@ -38,7 +38,7 @@ func (m *Message) IsBuffered() bool {
 	return m.future == nil
 }
 
-func (m *Message) Buffer() error {
+func (m *Message) Force() error {
 	if m.IsBuffered() {
 		return nil
 	}
@@ -112,7 +112,7 @@ func (m *Message) InitFromBytes(msgType byte, payload []byte) {
 	m.union = &m.buffered
 }
 
-func (m *Message) InitPromiseMsg(msgType byte, size uint32,
+func (m *Message) InitPromise(msgType byte, size uint32,
 	buffered []byte, r io.Reader) {
 	m.baseInitMessage(msgType, size)
 	m.buffered.InitReader(buffered)
