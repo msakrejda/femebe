@@ -4,7 +4,6 @@ import (
 	"bytes"
 	. "femebe"
 	"fmt"
-	"io"
 	"reflect"
 )
 
@@ -22,33 +21,38 @@ func InitReadyForQuery(m *Message, connState ConnStatus) {
 	m.InitFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
 }
 
-func NewField(name string, typOid int32) *FieldDescription {
-	typSize := TypSize(typoid)
+func NewField(name string, typOid uint32) *FieldDescription {
+	typSize := TypSize(typOid)
 	return &FieldDescription{name, 0, 0, typOid, typSize, -1, ENC_FMT_TEXT}
 }
 
 func InitRowDescription(m *Message, fields []FieldDescription) {
-	msgBytes := make([]byte, 0, len(fields)*(10+4+2+4+2+4+2))
+	// use a heuristic estimate for length to avoid having to
+	// resize the msgBytes array
+	fieldLenEst := (10+4+2+4+2+4+2)
+	msgBytes := make([]byte, 0, len(fields) * fieldLenEst)
 	buf := bytes.NewBuffer(msgBytes)
-	femebe.WriteInt16(buf, int16(len(fields)))
+	WriteInt16(buf, int16(len(fields)))
 	for _, field := range fields {
-		femebe.WriteCString(buf, field.name)
-		femebe.WriteInt32(buf, field.tableOid)
-		femebe.WriteInt16(buf, field.tableAttNo)
-		femebe.WriteInt32(buf, field.typeOid)
-		femebe.WriteInt16(buf, field.typLen)
-		femebe.WriteInt32(buf, field.atttypmod)
-		femebe.WriteInt16(buf, int16(field.format))
+		WriteCString(buf, field.name)
+		WriteInt32(buf, field.tableOid)
+		WriteInt16(buf, field.tableAttNo)
+		WriteUint32(buf, field.typeOid)
+		WriteInt16(buf, field.typLen)
+		WriteInt32(buf, field.atttypmod)
+		WriteInt16(buf, int16(field.format))
 	}
 
 	m.InitFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
 }
 
+// InitDataRow initializes the Message m as a DataRow message with
+// data from the value array cols.
 func InitDataRow(m *Message, cols []interface{}) {
 	msgBytes := make([]byte, 0, 2+len(cols)*4)
 	buf := bytes.NewBuffer(msgBytes)
 	colCount := int16(len(cols))
-	femebe.WriteInt16(buf, colCount)
+	WriteInt16(buf, colCount)
 	for _, val := range cols {
 		// TODO: allow format specification
 		encodeValue(buf, val, ENC_FMT_TEXT)
@@ -60,7 +64,7 @@ func InitDataRow(m *Message, cols []interface{}) {
 func InitCommandComplete(m *Message, cmdTag string) {
 	msgBytes := make([]byte, 0, len([]byte(cmdTag)))
 	buf := bytes.NewBuffer(msgBytes)
-	femebe.WriteCString(buf, cmdTag)
+	WriteCString(buf, cmdTag)
 
 	m.InitFromBytes(MSG_COMMAND_COMPLETE_C, buf.Bytes())
 }
@@ -68,7 +72,7 @@ func InitCommandComplete(m *Message, cmdTag string) {
 func InitQuery(m *Message, query string) {
 	msgBytes := make([]byte, 0, len([]byte(query))+1)
 	buf := bytes.NewBuffer(msgBytes)
-	femebe.WriteCString(buf, query)
+	WriteCString(buf, query)
 	m.InitFromBytes(MSG_QUERY_Q, buf.Bytes())
 }
 
@@ -81,7 +85,7 @@ func IsQuery(msg *Message) bool {
 }
 
 func ReadQuery(msg *Message) (*Query, error) {
-	qs, err := femebe.ReadCString(msg.Payload())
+	qs, err := ReadCString(msg.Payload())
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +97,7 @@ type FieldDescription struct {
 	name       string
 	tableOid   int32
 	tableAttNo int16
-	typeOid    int32
+	typeOid    uint32
 	typLen     int16
 	atttypmod  int32
 	format     EncFmt
@@ -137,39 +141,39 @@ func ReadRowDescription(msg *Message) (
 		panic("Oh snap")
 	}
 	b := msg.Payload()
-	fieldCount, err := femebe.ReadUint16(b)
+	fieldCount, err := ReadUint16(b)
 	if err != nil {
 		return nil, err
 	}
 
 	fields := make([]FieldDescription, fieldCount)
 	for i, _ := range fields {
-		name, err := femebe.ReadCString(b)
+		name, err := ReadCString(b)
 		if err != nil {
 			return nil, err
 		}
 
-		tableOid, err := femebe.ReadInt32(b)
+		tableOid, err := ReadInt32(b)
 		if err != nil {
 			return nil, err
 		}
-		tableAttNo, err := femebe.ReadInt16(b)
+		tableAttNo, err := ReadInt16(b)
 		if err != nil {
 			return nil, err
 		}
-		typeOid, err := femebe.ReadInt32(b)
+		typeOid, err := ReadUint32(b)
 		if err != nil {
 			return nil, err
 		}
-		typLen, err := femebe.ReadInt16(b)
+		typLen, err := ReadInt16(b)
 		if err != nil {
 			return nil, err
 		}
-		atttypmod, err := femebe.ReadInt32(b)
+		atttypmod, err := ReadInt32(b)
 		if err != nil {
 			return nil, err
 		}
-		format, err := femebe.ReadInt16(b)
+		format, err := ReadInt16(b)
 		if err != nil {
 			return nil, err
 		}
