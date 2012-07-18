@@ -14,8 +14,8 @@ func encodeValText(buf *bytes.Buffer,
 }
 
 func BinEncodeInt16(buff *bytes.Buffer, val int16) {
-		femebe.WriteInt32(buff, 2)
-		femebe.WriteInt16(buff, val)
+	femebe.WriteInt32(buff, 2)
+	femebe.WriteInt16(buff, val)
 }
 
 func TextEncodeInt16(buff *bytes.Buffer, val int16) {

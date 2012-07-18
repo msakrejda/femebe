@@ -25,8 +25,8 @@ func NewField(name string, typOid uint32) *FieldDescription {
 func InitRowDescription(m *Message, fields []FieldDescription) {
 	// use a heuristic estimate for length to avoid having to
 	// resize the msgBytes array
-	fieldLenEst := (10+4+2+4+2+4+2)
-	msgBytes := make([]byte, 0, len(fields) * fieldLenEst)
+	fieldLenEst := (10 + 4 + 2 + 4 + 2 + 4 + 2)
+	msgBytes := make([]byte, 0, len(fields)*fieldLenEst)
 	buf := bytes.NewBuffer(msgBytes)
 	WriteInt16(buf, int16(len(fields)))
 	for _, field := range fields {
