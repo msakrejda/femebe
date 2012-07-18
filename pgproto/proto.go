@@ -226,7 +226,6 @@ const (
 	MSG_BACKEND_KEY_DATA_K                       = 'K'
 	MSG_BIND_B                                   = 'B'
 	MSG_BIND_COMPLETE2                           = '2'
-	MSG_CANCEL_REQUEST                           = 129 // see below
 	MSG_CLOSE_C                                  = 'C'
 	MSG_CLOSE_COMPLETE3                          = '3'
 	MSG_COMMAND_COMPLETE_C                       = 'C'
@@ -256,17 +255,11 @@ const (
 	MSG_QUERY_Q                                  = 'Q'
 	MSG_READY_FOR_QUERY_Z                        = 'Z'
 	MSG_ROW_DESCRIPTION_T                        = 'T'
-	// We treat SSLRequest as a protocol negotiation mechanic
-	// rather than a first-class message, so it does not appear
-	// here
 
-	// StartupMessage and CancelRequest formatted differently:
-	// on the wire, they do not have a formal message type, so
-	// we use the top bit of these 8-bit bytes to flag these
-	// with distinct message types. This is a pretty ugly hack,
-	// but allows us to treat the messages uniformly throughout
-	// most of the system
-	MSG_STARTUP_MESSAGE = 128
-	MSG_SYNC_S          = 'S'
-	MSG_TERMINATE_X     = 'X'
+	// SSLRequest is not seen here because we treat SSLRequest as
+	// a protocol negotiation mechanic rather than a first-class
+	// message, so it does not appear here
+
+	MSG_SYNC_S      = 'S'
+	MSG_TERMINATE_X = 'X'
 )
