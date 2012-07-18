@@ -52,6 +52,7 @@ func MappedOid(val interface{}) uint32 {
 	default:
 		return OID_UNKNOWN
 	}
+
 	panic("Oh snap!")
 }
 
