@@ -76,12 +76,11 @@ func NewClientMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	return c
 }
 
-func NewServerMessageStream(name string, rw io.ReadWriteCloser) (
-	*MessageStream, error) {
+func NewServerMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	c := baseNewMessageStream(name, rw)
 	c.state = CONN_NORMAL
 
-	return c, nil
+	return c
 }
 
 type ConnState int32
