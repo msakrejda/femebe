@@ -43,20 +43,19 @@ func (s *session) start() {
 }
 
 type ProxyPair struct {
-	client     *femebe.MessageStream
-	clientConn net.Conn
-	server     *femebe.MessageStream
-	serverConn net.Conn
+	*femebe.MessageStream
+	net.Conn
 }
 
-func NewSimpleProxySession(errch chan error, pair *ProxyPair) *session {
-	mover := func(from, to *femebe.MessageStream) func() {
+func NewSimpleProxySession(errch chan error,
+	client *ProxyPair, server *ProxyPair) *session {
+	mover := func(from, to *ProxyPair) func() {
 		return func() {
 			var err error
 
 			defer func() {
-				pair.serverConn.Close()
-				pair.clientConn.Close()
+				from.Close()
+				to.Close()
 				errch <- err
 			}()
 
@@ -84,8 +83,8 @@ func NewSimpleProxySession(errch chan error, pair *ProxyPair) *session {
 	}
 
 	return &session{
-		ingress: mover(pair.client, pair.server),
-		egress:  mover(pair.server, pair.client),
+		ingress: mover(client, server),
+		egress:  mover(server, client),
 	}
 }
 
@@ -141,12 +140,8 @@ func handleConnection(cConn net.Conn, serverAddr string) {
 	}
 
 	done := make(chan error)
-	NewSimpleProxySession(done, &ProxyPair{
-		client:     c,
-		clientConn: cConn,
-		server:     s,
-		serverConn: sConn,
-	}).start()
+	NewSimpleProxySession(done, &ProxyPair{c, cConn},
+		&ProxyPair{s, sConn}).start()
 
 	// Both sides must exit to finish
 	_ = <-done

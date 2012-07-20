@@ -39,15 +39,6 @@ type Startup struct {
 	Params map[string]string
 }
 
-func IsStartup(m *femebe.Message) (bool, error) {
-	body, err := m.Force()
-	if err != nil {
-		return false, err
-	}
-
-	return bytes.HasPrefix(body, []byte{0x00, 0x03, 0x00, 0x00}), nil
-}
-
 func ReadStartupMessage(m *femebe.Message) (*Startup, error) {
 	var err error
 
