@@ -48,9 +48,10 @@ func (pos Position) String() string {
 }
 
 type TokenType int16
+
 // The result of Scan is one of the following tokens or a Unicode character.
 const (
-	EOF     TokenType = iota
+	EOF TokenType = iota
 	LBrace
 	RBrace
 	Equals
@@ -62,15 +63,15 @@ const (
 )
 
 var tokenString = map[TokenType]string{
-	EOF:       "EOF",
-        LBrace:    "[",
-	RBrace:    "]",
-	Equals:    "=",
-	At:        "@",
-	Comma:     ",",
-	Ident:     "Ident",
-	Int:       "Int",
-	String:    "String",
+	EOF:    "EOF",
+	LBrace: "[",
+	RBrace: "]",
+	Equals: "=",
+	At:     "@",
+	Comma:  ",",
+	Ident:  "Ident",
+	Int:    "Int",
+	String: "String",
 }
 
 func TokenTypeStr(tokTyp TokenType) string {
@@ -80,8 +81,8 @@ func TokenTypeStr(tokTyp TokenType) string {
 // position, lexeme, type in token; no keywords
 type Token struct {
 	Lexeme string
-	Type TokenType
-	Pos Position
+	Type   TokenType
+	Pos    Position
 }
 
 func (t *Token) String() string {
@@ -331,7 +332,7 @@ func (s *Scanner) scanInt(ch rune) rune {
 	return ch
 }
 
-func (s *Scanner) scanNumber(ch rune) (rune) {
+func (s *Scanner) scanNumber(ch rune) rune {
 	// isDecimal(ch)
 	if ch == '0' {
 		// int or float
@@ -405,7 +406,6 @@ func (s *Scanner) Scan() *Token {
 	if ch == -1 {
 		return &Token{"EOF", EOF, s.Pos()}
 	}
-
 
 	// start collecting token text
 	s.tokBuf.Reset()

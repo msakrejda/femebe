@@ -1,13 +1,11 @@
 package dogconf
 
-
 import (
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
 )
-
 
 /*
 
@@ -54,10 +52,10 @@ grammar:
 
 // Strip the quotes surrounding the string str and replace any escaped
 // quotes by their actual values 
-func stripStr(str string) (string) {
+func stripStr(str string) string {
 	// TODO: support quoted identifiers in addition to string literals
 	l := len(str)
-	if l < 2 || str[0] != '\'' || str[l - 1] != '\'' {
+	if l < 2 || str[0] != '\'' || str[l-1] != '\'' {
 		panic(fmt.Sprintf("Malformed string lexeme: %v", str))
 	}
 	stripped := strings.Replace(str[1:len(str)-1], "''", "'", -1)
@@ -113,7 +111,7 @@ func parseRequest(s *Scanner) (RouteRequest, error) {
 func parseRouteSpec(s *Scanner) (*RouteSpec, error) {
 	// Here we either expect the keyword/identifier 'all'
 	// or a quoted database identifier, optionally with an ocn
-	
+
 	if tok := s.Peek(); tok.Type == Ident && tok.Lexeme == "all" {
 		_, err := expect(s, Ident)
 		if err != nil {
@@ -126,7 +124,7 @@ func parseRouteSpec(s *Scanner) (*RouteSpec, error) {
 	tok, err := expect(s, String)
 	if err != nil {
 		return nil, err
-	}	
+	}
 	id := stripStr(tok.Lexeme)
 	ocn := InvalidOcn
 	// There may or may not be an OCN required for this command
@@ -146,7 +144,7 @@ func parseRouteSpec(s *Scanner) (*RouteSpec, error) {
 		ocn = Ocn(ocnInt)
 		if err != nil {
 			return nil, err
-		}		
+		}
 	}
 	return &RouteSpec{RouteId(id), Ocn(ocn)}, nil
 }
@@ -182,7 +180,7 @@ func parseCommand(spec *RouteSpec, s *Scanner) (req RouteRequest, err error) {
 		// nothing to do here
 		req = &DeleteRequest{*spec}
 	default:
-		return nil, fmt.Errorf("Expected 'patch', 'create', " +
+		return nil, fmt.Errorf("Expected 'patch', 'create', "+
 			"'get', or 'delete'; got %v", tok)
 	}
 	return req, nil
@@ -217,14 +215,14 @@ func parsePatchList(s *Scanner) (map[string]string, error) {
 			if !present {
 				patchMap[k] = stripStr(valTok.Lexeme)
 			} else {
-				return nil, fmt.Errorf("Duplicate key '%v' " +
+				return nil, fmt.Errorf("Duplicate key '%v' "+
 					" in patch request", keyTok)
 			}
 		default:
-			return nil, fmt.Errorf("Unknown key '%v': expected " +
+			return nil, fmt.Errorf("Unknown key '%v': expected "+
 				"'addr', 'lock', 'user', or 'password'", keyTok)
 		}
-		
+
 		allowComma = true
 	}
 	return patchMap, nil

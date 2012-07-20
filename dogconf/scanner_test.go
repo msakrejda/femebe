@@ -1,4 +1,5 @@
 package dogconf
+
 /*
 import (
 	"fmt"

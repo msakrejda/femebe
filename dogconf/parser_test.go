@@ -1,4 +1,5 @@
 package dogconf
+
 /*
 import (
 	"fmt"
@@ -29,5 +30,5 @@ func TestParseRequest(t *testing.T) {
 			fmt.Printf("%v\n", r)
 		}
 	}
-	
+
 }*/
