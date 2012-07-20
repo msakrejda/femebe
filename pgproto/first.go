@@ -1,3 +1,15 @@
+// Operators to handle first-packet interactions with a client.  That
+// includes:
+//
+// * SSL Negotiation Requests
+// * Startup Packet
+// * Cancellation Requests
+//
+// Startup can be re-done after an SSL Negotiation request, and this
+// can be modelled by making a TLS connection and then creating a new
+// MessageStream from femebe on the plaintext output of that.
+//
+// Copyright (c) 2012, Heroku.  All rights reserved.
 package pgproto
 
 import (
