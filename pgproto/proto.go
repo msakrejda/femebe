@@ -7,14 +7,28 @@ import (
 	"reflect"
 )
 
-func InitReadyForQuery(m *Message, connState ConnStatus) {
+type ErrBadTypeCode struct {
+	error
+}
+
+type ErrTooBig struct {
+	error
+}
+
+type ErrWrongSize struct {
+	error
+}
+
+func InitReadyForQuery(m *Message, connState ConnStatus) error {
 	if connState != RFQ_IDLE &&
 		connState != RFQ_INTRANS &&
 		connState != RFQ_ERROR {
-		panic(fmt.Errorf("Invalid message type %v", connState))
+		return ErrBadTypeCode{
+			fmt.Errorf("Invalid message type %v", connState)}
 	}
 
 	m.InitFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
+	return nil
 }
 
 func NewField(name string, typOid uint32) *FieldDescription {
@@ -25,8 +39,8 @@ func NewField(name string, typOid uint32) *FieldDescription {
 func InitRowDescription(m *Message, fields []FieldDescription) {
 	// use a heuristic estimate for length to avoid having to
 	// resize the msgBytes array
-	fieldLenEst := (10+4+2+4+2+4+2)
-	msgBytes := make([]byte, 0, len(fields) * fieldLenEst)
+	fieldLenEst := (10 + 4 + 2 + 4 + 2 + 4 + 2)
+	msgBytes := make([]byte, 0, len(fields)*fieldLenEst)
 	buf := bytes.NewBuffer(msgBytes)
 	WriteInt16(buf, int16(len(fields)))
 	for _, field := range fields {
@@ -130,8 +144,10 @@ type RowDescription struct {
 func ReadRowDescription(msg *Message) (
 	rd *RowDescription, err error) {
 	if msg.MsgType() != MSG_ROW_DESCRIPTION_T {
-		panic("Oh snap")
+		return nil, ErrBadTypeCode{
+			fmt.Errorf("Invalid message type %v", msg.MsgType())}
 	}
+
 	b := msg.Payload()
 	fieldCount, err := ReadUint16(b)
 	if err != nil {
@@ -181,6 +197,38 @@ func InitAuthenticationOk(m *Message) {
 	m.InitFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
 }
 
+type BackendKeyData struct {
+	pid int32
+	key int32
+}
+
+func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {
+	if msg.MsgType() != MSG_BACKEND_KEY_DATA_K {
+		return nil, ErrBadTypeCode{
+			fmt.Errorf("Invalid message type %v", msg.MsgType())}
+	}
+
+	const RIGHT_SZ = 12
+	if msg.Size() != RIGHT_SZ {
+		return nil, ErrWrongSize{
+			fmt.Errorf("BackendKeyData is wrong size: "+
+				"expected %v, got %v", RIGHT_SZ, msg.Size())}
+	}
+
+	r := msg.Payload()
+	pid, err := ReadInt32(r)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := ReadInt32(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BackendKeyData{pid: pid, key: key}, err
+}
+
 // FEBE Message type constants shamelessly stolen from the pq library.
 //
 // All the constants in this file have a special naming convention:
@@ -226,7 +274,6 @@ const (
 	MSG_BACKEND_KEY_DATA_K                       = 'K'
 	MSG_BIND_B                                   = 'B'
 	MSG_BIND_COMPLETE2                           = '2'
-	MSG_CANCEL_REQUEST                           = 129 // see below
 	MSG_CLOSE_C                                  = 'C'
 	MSG_CLOSE_COMPLETE3                          = '3'
 	MSG_COMMAND_COMPLETE_C                       = 'C'
@@ -256,17 +303,11 @@ const (
 	MSG_QUERY_Q                                  = 'Q'
 	MSG_READY_FOR_QUERY_Z                        = 'Z'
 	MSG_ROW_DESCRIPTION_T                        = 'T'
-	// We treat SSLRequest as a protocol negotiation mechanic
-	// rather than a first-class message, so it does not appear
-	// here
 
-	// StartupMessage and CancelRequest formatted differently:
-	// on the wire, they do not have a formal message type, so
-	// we use the top bit of these 8-bit bytes to flag these
-	// with distinct message types. This is a pretty ugly hack,
-	// but allows us to treat the messages uniformly throughout
-	// most of the system
-	MSG_STARTUP_MESSAGE = 128
-	MSG_SYNC_S          = 'S'
-	MSG_TERMINATE_X     = 'X'
+	// SSLRequest is not seen here because we treat SSLRequest as
+	// a protocol negotiation mechanic rather than a first-class
+	// message, so it does not appear here
+
+	MSG_SYNC_S      = 'S'
+	MSG_TERMINATE_X = 'X'
 )

@@ -38,9 +38,9 @@ func (m *Message) IsBuffered() bool {
 	return m.future == nil
 }
 
-func (m *Message) Force() error {
+func (m *Message) Force() ([]byte, error) {
 	if m.IsBuffered() {
-		return nil
+		return m.buffered.Bytes(), nil
 	}
 
 	payloadSz := m.Size() - 4
@@ -59,7 +59,8 @@ func (m *Message) Force() error {
 
 	m.buffered.InitReader(payload)
 	m.future = nil
-	return err
+
+	return m.buffered.Bytes(), err
 }
 
 func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {

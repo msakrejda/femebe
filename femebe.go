@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 )
@@ -18,10 +17,6 @@ type Flusher interface {
 // in the buffer, the remaining bytes must be saved for the next
 // invocation of Next().
 const MSG_HEADER_MIN_SIZE = 5
-
-// Startup packets longer than this are considered invalid.  Copied
-// from the PostgreSQL source code.
-const MAX_STARTUP_PACKET_LENGTH = 10000
 
 func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 8192))
@@ -76,12 +71,11 @@ func NewClientMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	return c
 }
 
-func NewServerMessageStream(name string, rw io.ReadWriteCloser) (
-	*MessageStream, error) {
+func NewServerMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	c := baseNewMessageStream(name, rw)
 	c.state = CONN_NORMAL
 
-	return c, nil
+	return c
 }
 
 type ConnState int32
@@ -120,31 +114,7 @@ func (c *MessageStream) Next(dst *Message) error {
 			return err
 		}
 
-		remainingSz := msgSz - 4
-
-		if remainingSz > MAX_STARTUP_PACKET_LENGTH {
-			c.err = fmt.Errorf(
-				"Rejecting oversized startup packet: got %v",
-				msgSz)
-			c.state = CONN_ERR
-			return err
-		} else if remainingSz < 4 {
-			// We expect all initialization messages to
-			// have at least a 4-byte header
-			c.err = fmt.Errorf(
-				"Expected message of at least 4 bytes; got %v",
-				remainingSz)
-			c.state = CONN_ERR
-			return err
-		}
-
 		dst.InitPromise(MSG_TYPE_FIRST, msgSz, []byte{}, c.rw)
-		if err := dst.Force(); err != nil {
-			c.err = err
-			c.state = CONN_ERR
-			return err
-		}
-
 		c.state = CONN_NORMAL
 		return nil
 

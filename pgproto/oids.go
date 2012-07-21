@@ -52,6 +52,7 @@ func MappedOid(val interface{}) uint32 {
 	default:
 		return OID_UNKNOWN
 	}
+
 	panic("Oh snap!")
 }
 
@@ -79,6 +80,8 @@ func TypSize(typOid uint32) int16 {
 		// unknown, assume variable length
 		return -1
 	}
+
+	panic("Oh snap!")
 }
 
 // The oids of the Postgres built-in types
