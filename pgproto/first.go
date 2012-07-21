@@ -19,14 +19,6 @@ import (
 	"fmt"
 )
 
-type ErrStartupSmall struct {
-	error
-}
-
-type ErrStartupBig struct {
-	error
-}
-
 type ErrStartupVersion struct {
 	error
 }
@@ -45,14 +37,14 @@ func ReadStartupMessage(m *femebe.Message) (*Startup, error) {
 	if remainingSz := m.Size() - 4; remainingSz > 10000 {
 		// Startup packets longer than this are considered
 		// invalid.  Copied from the PostgreSQL source code.
-		err = ErrStartupBig{fmt.Errorf(
+		err = ErrTooBig{fmt.Errorf(
 			"Rejecting oversized startup packet: got %v",
 			m.Size())}
 		return nil, err
 	} else if remainingSz < 4 {
 		// We expect all initialization messages to
 		// have at least a 4-byte header
-		err = ErrStartupSmall{
+		err = ErrWrongSize{
 			fmt.Errorf(
 				"Expected message of at least 4 bytes; got %v",
 				remainingSz)}

@@ -62,7 +62,7 @@ func TestHugeStartup(t *testing.T) {
 	}
 
 	_, err = ReadStartupMessage(m)
-	if _, ok := err.(ErrStartupBig); ok {
+	if _, ok := err.(ErrTooBig); ok {
 		// This is expected
 	} else {
 		t.Fatalf("Got error %#v, and it is not expected", err)
@@ -81,7 +81,7 @@ func TestSmallStartup(t *testing.T) {
 	}
 
 	_, err = ReadStartupMessage(m)
-	if _, ok := err.(ErrStartupSmall); ok {
+	if _, ok := err.(ErrWrongSize); ok {
 		// This is expected
 	} else {
 		t.Fatalf("Got error %#v, and it is not expected", err)

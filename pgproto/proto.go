@@ -7,14 +7,28 @@ import (
 	"reflect"
 )
 
-func InitReadyForQuery(m *Message, connState ConnStatus) {
+type ErrBadTypeCode struct {
+	error
+}
+
+type ErrTooBig struct {
+	error
+}
+
+type ErrWrongSize struct {
+	error
+}
+
+func InitReadyForQuery(m *Message, connState ConnStatus) error {
 	if connState != RFQ_IDLE &&
 		connState != RFQ_INTRANS &&
 		connState != RFQ_ERROR {
-		panic(fmt.Errorf("Invalid message type %v", connState))
+		return ErrBadTypeCode{
+			fmt.Errorf("Invalid message type %v", connState)}
 	}
 
 	m.InitFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
+	return nil
 }
 
 func NewField(name string, typOid uint32) *FieldDescription {
@@ -130,8 +144,10 @@ type RowDescription struct {
 func ReadRowDescription(msg *Message) (
 	rd *RowDescription, err error) {
 	if msg.MsgType() != MSG_ROW_DESCRIPTION_T {
-		panic("Oh snap")
+		return nil, ErrBadTypeCode{
+			fmt.Errorf("Invalid message type %v", msg.MsgType())}
 	}
+
 	b := msg.Payload()
 	fieldCount, err := ReadUint16(b)
 	if err != nil {
@@ -179,6 +195,38 @@ func ReadRowDescription(msg *Message) (
 
 func InitAuthenticationOk(m *Message) {
 	m.InitFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
+}
+
+type BackendKeyData struct {
+	pid int32
+	key int32
+}
+
+func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {
+	if msg.MsgType() != MSG_BACKEND_KEY_DATA_K {
+		return nil, ErrBadTypeCode{
+			fmt.Errorf("Invalid message type %v", msg.MsgType())}
+	}
+
+	const RIGHT_SZ = 12
+	if msg.Size() != RIGHT_SZ {
+		return nil, ErrWrongSize{
+			fmt.Errorf("BackendKeyData is wrong size: "+
+				"expected %v, got %v", RIGHT_SZ, msg.Size())}
+	}
+
+	r := msg.Payload()
+	pid, err := ReadInt32(r)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := ReadInt32(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BackendKeyData{pid: pid, key: key}, err
 }
 
 // FEBE Message type constants shamelessly stolen from the pq library.
