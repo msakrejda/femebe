@@ -62,7 +62,6 @@ func newClosableBuffer(buf *bytes.Buffer) *closableBuffer {
 }
 
 func TestPromise(t *testing.T) {
-	// Write a complete AuthenticationOk message to a buffer.
 	var m Message
 	InitBogon(&m)
 
@@ -108,7 +107,6 @@ func TestPromise(t *testing.T) {
 }
 
 func TestIncompleteMessage(t *testing.T) {
-	// Write a complete AuthenticationOk message to a buffer.
 	var m Message
 	InitBogon(&m)
 

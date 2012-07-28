@@ -170,14 +170,6 @@ func (c *MessageStream) Next(dst *Message) error {
 			newBytes := c.scratchBuf[:]
 			n, err := c.rw.Read(newBytes)
 
-			// Don't fail immediately, because a few valid
-			// messages may have been received in addition
-			// to an error.
-			if err != nil {
-				c.err = err
-				goto again
-			}
-
 			// NB: errors from writing to the buffer is
 			// ignored, because msgRemainder is a
 			// bytes.Buffer and per specification it will
@@ -185,6 +177,14 @@ func (c *MessageStream) Next(dst *Message) error {
 			// bytes.  Beware if one is changing the type
 			// of c.msgRemainder.
 			c.msgRemainder.Write(newBytes[0:n])
+
+			// Don't fail immediately, because a few valid
+			// messages may have been received in addition
+			// to an error.
+			if err != nil {
+				c.err = err
+				goto again
+			}
 		}
 
 		// The buffer should be full enough to at least
