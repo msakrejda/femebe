@@ -23,7 +23,7 @@ import (
 // Some constants in the form of bytes, to avoid string overhead.
 // Needlessly fastidious, I suppose.
 var (
-	commaSpaceBytes = []byte(", ")
+	commaSpaceBytes = []byte(",\n")
 	nilAngleBytes   = []byte("<nil>")
 	nilParenBytes   = []byte("(nil)")
 	nilBytes        = []byte("nil")
@@ -570,7 +570,7 @@ func (p *pp) fmtBytes(v []byte, verb rune, goSyntax bool, depth int) {
 			p.printField(c, 'v', p.fmt.plus, goSyntax, depth+1)
 		}
 		if goSyntax {
-			p.buf.WriteByte('}')
+			p.buf.Write([]byte{'\n', '}'})
 		} else {
 			p.buf.WriteByte(']')
 		}
@@ -878,6 +878,17 @@ func sortValues(vals []reflect.Value) []reflect.Value {
 func (p *pp) printReflectValue(value reflect.Value, verb rune, plus, goSyntax bool, depth int) (wasString bool) {
 	oldValue := p.value
 	p.value = value
+
+	writeIndent := func(more int) {
+		if depth+more < 0 {
+			panic("Attempting to indent by a negative indentation")
+		}
+
+		for i := 0; i < depth+more; i += 1 {
+			p.add(' ')
+		}
+	}
+
 BigSwitch:
 	switch f := value; f.Kind() {
 	case reflect.Bool:
@@ -908,6 +919,7 @@ BigSwitch:
 				break
 			}
 			p.buf.WriteByte('{')
+			p.buf.WriteByte('\n')
 		} else {
 			p.buf.Write(mapBytes)
 		}
@@ -921,11 +933,15 @@ BigSwitch:
 					p.buf.WriteByte(' ')
 				}
 			}
+
+			writeIndent(0)
 			p.printValue(key, verb, plus, goSyntax, depth+1)
 			p.buf.WriteByte(':')
 			p.printValue(f.MapIndex(key), verb, plus, goSyntax, depth+1)
 		}
 		if goSyntax {
+			p.buf.WriteByte('\n')
+			writeIndent(-1)
 			p.buf.WriteByte('}')
 		} else {
 			p.buf.WriteByte(']')
@@ -934,7 +950,7 @@ BigSwitch:
 		if goSyntax {
 			p.buf.WriteString(value.Type().String())
 		}
-		p.add('{')
+		p.buf.Write([]byte("{\n"))
 		v := f
 		t := v.Type()
 		for i := 0; i < v.NumField(); i++ {
@@ -947,12 +963,16 @@ BigSwitch:
 			}
 			if plus || goSyntax {
 				if f := t.Field(i); f.Name != "" {
+					writeIndent(0)
 					p.buf.WriteString(f.Name)
 					p.buf.WriteByte(':')
 				}
 			}
 			p.printValue(getField(v, i), verb, plus, goSyntax, depth+1)
 		}
+
+		p.buf.WriteByte('\n')
+		writeIndent(-1)
 		p.buf.WriteByte('}')
 	case reflect.Interface:
 		value := f.Elem()

@@ -1,1 +1,6 @@
-&dogconf.GetRequest{RouteSpec:dogconf.RouteSpec{Route:"", Ocn:0x0}}
+&dogconf.GetRequest{
+ RouteSpec:dogconf.RouteSpec{
+  Route:"",
+  Ocn:0x0
+ }
+}
