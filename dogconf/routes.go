@@ -25,7 +25,7 @@ var AllRoutes = &RouteSpec{InvalidRoute, InvalidOcn}
 
 // Shared interface for all the request types
 type RouteRequest interface {
-	Process(routes *RouteMap, essions *SessionMap) (RouteResult, error)
+	Process(routes *RouteMap, sessions *SessionMap) (RouteResult, error)
 }
 
 type RouteResult interface {
