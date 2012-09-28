@@ -1,0 +1,1 @@
+&dogconf.AddRequest{RouteSpec:dogconf.RouteSpec{Route:"bar", Ocn:0x2a}, Values:map[string]string{"addr":"123.123.123.125:5445"}}

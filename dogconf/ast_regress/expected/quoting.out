@@ -1,0 +1,1 @@
+&dogconf.PatchRequest{RouteSpec:dogconf.RouteSpec{Route:"!xp", Ocn:0x5}, Patches:map[string]string{"lock":"true", "password":"x',\""}}

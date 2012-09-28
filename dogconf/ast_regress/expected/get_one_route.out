@@ -1,0 +1,1 @@
+&dogconf.GetRequest{RouteSpec:dogconf.RouteSpec{Route:"bar", Ocn:0x0}}

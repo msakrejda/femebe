@@ -1,0 +1,1 @@
+&dogconf.DeleteRequest{RouteSpec:dogconf.RouteSpec{Route:"foo", Ocn:0x2a}}
