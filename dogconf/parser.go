@@ -3,7 +3,6 @@ package dogconf
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 )
 
@@ -71,17 +70,18 @@ func expect(s *Scanner, tokTyp TokenType) (*Token, error) {
 	return tok, nil
 }
 
-func ParseRequest(r io.Reader) (RouteRequest, error) {
+func ParseRequest(r io.Reader) (*RequestSyntax, error) {
 	var s = new(Scanner)
 	s.Init(r)
 	return parseRequest(s)
 }
 
-func parseRequest(s *Scanner) (RouteRequest, error) {
-	_, err := expect(s, LBrace)
+func parseRequest(s *Scanner) (rs *RequestSyntax, err error) {
+	_, err = expect(s, LBrace)
 	if err != nil {
 		return nil, err
 	}
+
 	tok, err := expect(s, Ident)
 	if err != nil {
 		return nil, err
@@ -89,6 +89,7 @@ func parseRequest(s *Scanner) (RouteRequest, error) {
 	if tok.Lexeme != "route" {
 		return nil, fmt.Errorf("Expected 'route', got %v", tok)
 	}
+
 	spec, err := parseRouteSpec(s)
 	if err != nil {
 		return nil, err
@@ -97,98 +98,117 @@ func parseRequest(s *Scanner) (RouteRequest, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd, err := parseCommand(spec, s)
+
+	// Only handle exactly one action per RequestSyntax for now
+	action, err := parseAction(s)
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = expect(s, RBrace)
 	if err != nil {
 		return nil, err
 	}
-	return cmd, nil
+
+	return &RequestSyntax{Spec: spec, Action: action}, nil
 }
 
-func parseRouteSpec(s *Scanner) (*RouteSpec, error) {
-	// Here we either expect the keyword/identifier 'all'
-	// or a quoted database identifier, optionally with an ocn
+func parseRouteSpec(s *Scanner) (SpecSyntax, error) {
+	// Here we either expect the keyword/identifier 'all' or a
+	// quoted route identifier, optionally with an ocn.
 
+	// If this is an 'all' specifier, short-circuit and return a
+	// Syntax node for that.
 	if tok := s.Peek(); tok.Type == Ident && tok.Lexeme == "all" {
 		_, err := expect(s, Ident)
 		if err != nil {
 			return nil, err
 		} else {
-			return AllRoutes, nil
+			return &TargetAllSpecSyntax{Target: tok}, nil
 		}
 	}
 
-	tok, err := expect(s, String)
+	// Both TargetOneSpecSyntax and TargetOcnSpecSyntax have a
+	// targeted route.
+	what, err := expect(s, String)
 	if err != nil {
 		return nil, err
 	}
-	id := stripStr(tok.Lexeme)
-	ocn := InvalidOcn
+
 	// There may or may not be an OCN required for this command
 	// and there may or may not be one present--we don't attempt
-	// to resolve this at the grammar level. Note that we *never*
-	// require an OCN for the 'all' commands.
+	// to resolve this at the grammar level.
 	if tok := s.Peek(); tok.Type == At {
 		_, err = expect(s, At)
 		if err != nil {
 			return nil, err
 		}
+
 		tok, err = expect(s, Int)
 		if err != nil {
 			return nil, err
 		}
-		ocnInt, err := strconv.ParseUint(tok.Lexeme, 10, 64)
-		ocn = Ocn(ocnInt)
-		if err != nil {
-			return nil, err
-		}
+
+		var out TargetOcnSpecSyntax
+		out.What = what
+		out.Ocn = tok
+		return out, nil
+	} else {
+		// No OCN specified
+		return &TargetOneSpecSyntax{What: what}, nil
 	}
-	return &RouteSpec{RouteId(id), Ocn(ocn)}, nil
+
+	panic("Uncovered conditions")
 }
 
-func parseCommand(spec *RouteSpec, s *Scanner) (req RouteRequest, err error) {
+func parseAction(s *Scanner) (a ActionSyntax, err error) {
 	tok, err := expect(s, Ident)
 	if err != nil {
 		return nil, err
 	}
 
 	switch tok.Lexeme {
-	case "patch", "create":
-		_, err = expect(s, LBrace)
+	case "patch":
+		props, err := parseProps(s)
 		if err != nil {
 			return nil, err
 		}
-		patches, err := parsePatchList(s)
+
+		return &PatchActionSyntax{PatchProps: props}, nil
+	case "create":
+		props, err := parseProps(s)
 		if err != nil {
 			return nil, err
 		}
-		_, err = expect(s, RBrace)
-		if err != nil {
-			return nil, err
-		}
-		if tok.Lexeme == "patch" {
-			req = &PatchRequest{*spec, patches}
-		} else {
-			req = &AddRequest{*spec, patches}
-		}
+
+		return &CreateActionSyntax{CreateProps: props}, nil
 	case "get":
-		req = &GetRequest{*spec}
+		return &GetActionSyntax{GetToken: tok}, nil
 	case "delete":
-		// nothing to do here
-		req = &DeleteRequest{*spec}
+		return &DeleteActionSyntax{DeleteToken: tok}, nil
 	default:
 		return nil, fmt.Errorf("Expected 'patch', 'create', "+
 			"'get', or 'delete'; got %v", tok)
 	}
-	return req, nil
 
+	panic("Uncovered conditions")
 }
 
-func parsePatchList(s *Scanner) (map[string]string, error) {
-	patchMap := make(map[string]string)
+// Parses a series of tokens like:
+//
+//   [ ident = 'lit', ident2 = 'lit2' ]"
+//
+// Producing a token-to-token mapping as output.
+func parseProps(s *Scanner) (map[*Token]*Token, error) {
+	// Just advance over leading '['
+	_, err := expect(s, LBrace)
+	if err != nil {
+		return nil, err
+	}
+
+	// The main routine: turning the token ident/literal mappings
+	// into a more useful data structure.
+	props := make(map[*Token]*Token)
 	allowComma := false
 	for tok := s.Peek(); tok.Type != RBrace; tok = s.Peek() {
 		if allowComma && tok.Type == Comma {
@@ -209,11 +229,19 @@ func parsePatchList(s *Scanner) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// Check validity of property keys being set.  This is
+		// a convenience afforded by the fact that property
+		// lists are only used by one construct in dogconf, so
+		// it's possible to do some checking of the keys at
+		// parse-time.  If this code needs be made
+		// multi-purpose, it is best for validity-checking
+		// code to move to the semantic analyzer.
 		switch k := keyTok.Lexeme; k {
 		case "addr", "lock", "user", "password":
-			_, present := patchMap[k]
+			_, present := props[keyTok]
 			if !present {
-				patchMap[k] = stripStr(valTok.Lexeme)
+				props[keyTok] = valTok
 			} else {
 				return nil, fmt.Errorf("Duplicate key '%v' "+
 					" in patch request", keyTok)
@@ -225,5 +253,12 @@ func parsePatchList(s *Scanner) (map[string]string, error) {
 
 		allowComma = true
 	}
-	return patchMap, nil
+
+	// Just advance over trailing ']'
+	_, err = expect(s, RBrace)
+	if err != nil {
+		return nil, err
+	}
+
+	return props, nil
 }

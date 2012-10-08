@@ -2,13 +2,71 @@ INPUT<
 [route '!xp' @ 5 [patch [password='x'',"',lock='true']]]
 
 OUTPUT>
-&dogconf.PatchRequest{
- RouteSpec:dogconf.RouteSpec{
-  Route:"!xp",
-  Ocn:0x5
+&dogconf.RequestSyntax{
+ Spec:dogconf.TargetOcnSpecSyntax{
+  TargetOneSpecSyntax:dogconf.TargetOneSpecSyntax{
+   What:&dogconf.Token{
+     Lexeme:"'!xp'",
+     Type:8,
+     Pos:dogconf.Position{
+      Filename:"",
+      Offset:12,
+      Line:1,
+      Column:13
+     }
+    }
+  },
+  Ocn:&dogconf.Token{
+    Lexeme:"5",
+    Type:7,
+    Pos:dogconf.Position{
+     Filename:"",
+     Offset:16,
+     Line:1,
+     Column:17
+    }
+   }
  },
- Patches:map[string]string{
-  "lock":"true",
-  "password":"x',\""
- }
+ Action:&dogconf.PatchActionSyntax{
+   PatchProps:map[*dogconf.Token]*dogconf.Token{
+    &dogconf.Token{
+      Lexeme:"lock",
+      Type:6,
+      Pos:dogconf.Position{
+       Filename:"",
+       Offset:46,
+       Line:1,
+       Column:47
+      }
+     }:&dogconf.Token{
+      Lexeme:"'true'",
+      Type:8,
+      Pos:dogconf.Position{
+       Filename:"",
+       Offset:53,
+       Line:1,
+       Column:54
+      }
+     },
+    &dogconf.Token{
+      Lexeme:"password",
+      Type:6,
+      Pos:dogconf.Position{
+       Filename:"",
+       Offset:33,
+       Line:1,
+       Column:34
+      }
+     }:&dogconf.Token{
+      Lexeme:"'x'',\"'",
+      Type:8,
+      Pos:dogconf.Position{
+       Filename:"",
+       Offset:41,
+       Line:1,
+       Column:42
+      }
+     }
+   }
+  }
 }
