@@ -592,39 +592,9 @@ func (p *pp) fmtBytes(v []byte, verb rune, goSyntax bool, depth int) {
 }
 
 func (p *pp) fmtPointer(value reflect.Value, verb rune, goSyntax bool) {
-	switch verb {
-	case 'p', 'v', 'b', 'd', 'o', 'x', 'X':
-		// ok
-	default:
-		p.badVerb(verb)
-		return
-	}
-
-	var u uintptr
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Slice, reflect.UnsafePointer:
-		u = value.Pointer()
-	default:
-		p.badVerb(verb)
-		return
-	}
-
-	if goSyntax {
-		p.add('(')
-		p.buf.WriteString(value.Type().String())
-		p.add(')')
-		p.add('(')
-		if u == 0 {
-			p.buf.Write(nilBytes)
-		} else {
-			p.fmt0x64(uint64(u), true)
-		}
-		p.add(')')
-	} else if verb == 'v' && u == 0 {
-		p.buf.Write(nilAngleBytes)
-	} else {
-		p.fmt0x64(uint64(u), !p.fmt.sharp)
-	}
+	// Nominally this should never happen: all utilized call sites
+	// should be rewritten to avoid fmtPointer.
+	panic("Printing pointers is useless in regression tests")
 }
 
 var (
@@ -859,7 +829,7 @@ func sortValues(vals []reflect.Value) []reflect.Value {
 	// Fill a slice of these values and sort it.
 	sortVals := make(valueSortSlice, len(vals))
 	for i, _ := range vals {
-		st := valueSortTuple{vals[i].String(), &vals[i]}
+		st := valueSortTuple{Sprintf("%#v", vals[i].Interface()), &vals[i]}
 		sortVals[i] = st
 	}
 	sortVals.Sort()
@@ -972,7 +942,11 @@ BigSwitch:
 		}
 
 		p.buf.WriteByte('\n')
-		writeIndent(-1)
+		if depth == 0 {
+			writeIndent(0)
+		} else {
+			writeIndent(-1)
+		}
 		p.buf.WriteByte('}')
 	case reflect.Interface:
 		value := f.Elem()
@@ -1031,21 +1005,17 @@ BigSwitch:
 		}
 	case reflect.Ptr:
 		v := f.Pointer()
-		// pointer to array or slice or struct?  ok at top level
-		// but not embedded (avoid loops)
-		if v != 0 && depth == 0 {
-			switch a := f.Elem(); a.Kind() {
-			case reflect.Array, reflect.Slice:
-				p.buf.WriteByte('&')
-				p.printValue(a, verb, plus, goSyntax, depth+1)
-				break BigSwitch
-			case reflect.Struct:
-				p.buf.WriteByte('&')
-				p.printValue(a, verb, plus, goSyntax, depth+1)
-				break BigSwitch
-			}
+		// pointer to array or slice or struct?  ok at top
+		// level but not embedded (can cause loops on cyclic
+		// data structures, so don't use this kind of printing
+		// with cyclic data structures)
+		if v != 0 {
+			p.buf.WriteByte('&')
+			p.printValue(f.Elem(), verb, plus, goSyntax, depth+1)
+			break BigSwitch
+		} else {
+			p.buf.Write(nilBytes)
 		}
-		fallthrough
 	case reflect.Chan, reflect.Func, reflect.UnsafePointer:
 		p.fmtPointer(value, verb, goSyntax)
 	default:
