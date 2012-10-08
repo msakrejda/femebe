@@ -1,3 +1,7 @@
+INPUT<
+[route '!xp' @ 5 [patch [password='x'',"',lock='true']]]
+
+OUTPUT>
 &dogconf.PatchRequest{
  RouteSpec:dogconf.RouteSpec{
   Route:"!xp",

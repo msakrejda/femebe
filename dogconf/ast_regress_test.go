@@ -9,22 +9,60 @@ import (
 	"testing"
 )
 
-func astRegress(t *testing.T, name string, input string) {
-	// Set up destination file to dump test results
-	destFileName := filepath.Join("ast_regress", "results", name) + ".out"
-	destFile, err := os.OpenFile(destFileName,
+// Used for fast and lucid handling of regression file generation.
+// The main function is to record, in-memory, the bytes written to a
+// result file (as to avoid re-reading them from disk) for future
+// comparison against expected-output files on disk.
+type resultFile struct {
+	io.Writer
+	io.Closer
+	Byteser
+	buf     bytes.Buffer
+	diskOut io.WriteCloser
+}
+
+type Byteser interface {
+	Bytes() []byte
+}
+
+// Open a new resultFile, failing the test should that not be
+// possible.
+func newResultFile(t *testing.T, path string) *resultFile {
+	destFile, err := os.OpenFile(path,
 		os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
 	if err != nil {
 		t.Fatalf("Could not open results file at %v: %v",
-			destFileName, err)
+			path, err)
 	}
-	defer destFile.Close()
+
+	rf := resultFile{}
+	rf.diskOut = destFile
+	rf.Writer = io.MultiWriter(destFile, &rf.buf)
+	rf.Closer = rf.diskOut
+	rf.Byteser = &rf.buf
+
+	return &rf
+}
+
+func astRegress(t *testing.T, name string, input string) {
+	// Set up destination file to dump test results
+	destFileName := filepath.Join("ast_regress", "results", name) + ".out"
+	resultOut := newResultFile(t, destFileName)
+	defer resultOut.Close()
+
+	// Write the input to the top of the output file because that
+	// makes it easier to skim the corresponding results
+	// immediately after it.
+	_, err := io.WriteString(resultOut, "INPUT<\n"+input+"\n\n")
+	if err != nil {
+		t.Fatalf("Could echo test input to results file: %v", err)
+	}
 
 	result, err := ParseRequest(bytes.NewBuffer([]byte(input)))
 
 	// Run the parser
 	formatted := stable.Sprintf("%#v\n", result)
-	_, err = io.WriteString(destFile, formatted)
+	_, err = io.WriteString(resultOut, "OUTPUT>\n"+formatted)
 	if err != nil {
 		t.Fatalf("Could write test output to results file: %v", err)
 	}
@@ -44,7 +82,7 @@ func astRegress(t *testing.T, name string, input string) {
 	// date a diff can be emitted in the slow-path when there is a
 	// failure, even though technically 'diff' could also be
 	// expensively used to determine if the test failed or not.
-	resultBytes := []byte(formatted)
+	resultBytes := []byte(resultOut.Bytes())
 
 	// Read one more byte than required to see if expected output
 	// is longer than result output.

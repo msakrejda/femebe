@@ -1,3 +1,7 @@
+INPUT<
+[route all [get]]
+
+OUTPUT>
 &dogconf.GetRequest{
  RouteSpec:dogconf.RouteSpec{
   Route:"",

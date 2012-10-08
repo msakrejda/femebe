@@ -1,3 +1,7 @@
+INPUT<
+[route 'foo' @ 42 [delete]]
+
+OUTPUT>
 &dogconf.DeleteRequest{
  RouteSpec:dogconf.RouteSpec{
   Route:"foo",

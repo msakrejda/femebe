@@ -1,3 +1,7 @@
+INPUT<
+[route 'bar' @ 42 [create [addr='123.123.123.125:5445']]]
+
+OUTPUT>
 &dogconf.AddRequest{
  RouteSpec:dogconf.RouteSpec{
   Route:"bar",
