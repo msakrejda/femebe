@@ -1,0 +1,53 @@
+INPUT<
+[route 'bar' @ 1 [patch [addr='123.123.123.125:5445']]]
+
+OUTPUT>
+&dogconf.RequestSyntax{
+ Spec:dogconf.TargetOcnSpecSyntax{
+  TargetOneSpecSyntax:dogconf.TargetOneSpecSyntax{
+   What:&dogconf.Token{
+     Lexeme:"'bar'",
+     Type:8,
+     Pos:dogconf.Position{
+      Filename:"",
+      Offset:12,
+      Line:1,
+      Column:13
+     }
+    }
+  },
+  Ocn:&dogconf.Token{
+    Lexeme:"1",
+    Type:7,
+    Pos:dogconf.Position{
+     Filename:"",
+     Offset:16,
+     Line:1,
+     Column:17
+    }
+   }
+ },
+ Action:&dogconf.PatchActionSyntax{
+   PatchProps:map[*dogconf.Token]*dogconf.Token{
+    &dogconf.Token{
+      Lexeme:"addr",
+      Type:6,
+      Pos:dogconf.Position{
+       Filename:"",
+       Offset:29,
+       Line:1,
+       Column:30
+      }
+     }:&dogconf.Token{
+      Lexeme:"'123.123.123.125:5445'",
+      Type:8,
+      Pos:dogconf.Position{
+       Filename:"",
+       Offset:52,
+       Line:1,
+       Column:53
+      }
+     }
+   }
+  }
+}
