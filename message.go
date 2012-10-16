@@ -63,6 +63,8 @@ func (m *Message) Force() ([]byte, error) {
 	return m.buffered.Bytes(), err
 }
 
+var bufBack [4]byte
+
 func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
 	var totalN int64
 
@@ -75,7 +77,7 @@ func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
 	}
 
 	// Write message size integer to the stream
-	var bufBack [4]byte
+
 	buf := bufBack[:]
 	binary.BigEndian.PutUint32(buf, m.Size())
 	nMsgSz, err := w.Write(buf)
