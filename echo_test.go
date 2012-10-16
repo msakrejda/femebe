@@ -12,12 +12,10 @@ func BenchmarkEchoSend(b *testing.B) {
 	var pong Message
 
 	ping.InitFromBytes('i', []byte("ftest"))
-	underBuf := bytes.NewBuffer(make([]byte, 0, 1024))
-	buf := newClosableBuffer(underBuf)
+	buf := NewPackBuffer(9208)
 	ms := NewServerMessageStream("echo", buf)
 
 	for i := 0; i < b.N; i++ {
-		underBuf.Reset()
 		b.StartTimer()
 		for j := 0; j < 1000; j++ {
 			ms.Send(&ping)
@@ -60,12 +58,14 @@ func TestEcho(t *testing.T) {
 	ping.InitFromBytes('i', []byte("ftest"))
 	var pong Message
 
-	buf := newClosableBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
+	buf := NewPackBuffer(1024)
 
 	ms := NewServerMessageStream("echo", buf)
+	print("sending")
 	ms.Send(&ping)
 	t.Logf("%v", buf)
 
+	print("recv")
 	ms.Next(&pong)
 
 	rest, _ := pong.Force()
