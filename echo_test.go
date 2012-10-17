@@ -1,7 +1,6 @@
 package femebe
 
 import (
-	"bytes"
 	"testing"
 )
 
@@ -11,8 +10,8 @@ func BenchmarkEchoSend(b *testing.B) {
 	var ping Message
 	var pong Message
 
-	ping.InitFromBytes('i', []byte("ftest"))
-	buf := NewPackBuffer(9208)
+	ping.InitFromBytes('i', make([]byte, 50))
+	buf := NewPackBuffer(2048)
 	ms := NewServerMessageStream("echo", buf)
 
 	for i := 0; i < b.N; i++ {
@@ -33,18 +32,17 @@ func BenchmarkEchoNext(b *testing.B) {
 	var ping Message
 	var pong Message
 
-	ping.InitFromBytes('i', []byte("ftest"))
-	underBuf := bytes.NewBuffer(make([]byte, 0, 1024))
-	buf := newClosableBuffer(underBuf)
+	ping.InitFromBytes('i', make([]byte, 50))
+	buf := NewPackBuffer(204800)
 	ms := NewServerMessageStream("echo", buf)
 
 	for i := 0; i < b.N; i++ {
-		underBuf.Reset()
-		for j := 0; j < 1000; j++ {
+		for j := 0; j < 10000; j++ {
 			ms.Send(&ping)
 		}
 		b.StartTimer()
-		for j := 0; j < 1000; j++ {
+		for j := 0; j < 10000; j++ {
+
 			ms.Next(&pong)
 		}
 		b.StopTimer()
@@ -69,5 +67,5 @@ func TestEcho(t *testing.T) {
 	ms.Next(&pong)
 
 	rest, _ := pong.Force()
-	t.Logf("Type:%c, bytes:%s,", pong.MsgType(), rest)
+	t.Logf("Type:%v, bytes:%v,", pong.MsgType(), rest)
 }
