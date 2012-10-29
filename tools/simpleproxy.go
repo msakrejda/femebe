@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
-	"femebe"
+	"github.com/deafbybeheading/femebe"
 	"fmt"
 	"io"
 	"net"

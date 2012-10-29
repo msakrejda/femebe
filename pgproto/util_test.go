@@ -2,7 +2,7 @@ package pgproto
 
 import (
 	"bytes"
-	"femebe"
+	"github.com/deafbybeheading/femebe"
 	"io"
 	"testing"
 )
