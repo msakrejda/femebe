@@ -15,8 +15,8 @@ package pgproto
 import (
 	"bytes"
 	"errors"
-	"femebe"
 	"fmt"
+	"github.com/deafbybeheading/femebe"
 )
 
 type ErrStartupVersion struct {

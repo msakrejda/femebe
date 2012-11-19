@@ -2,8 +2,8 @@ package pgproto
 
 import (
 	"bytes"
-	. "femebe"
 	"fmt"
+	. "github.com/deafbybeheading/femebe"
 	"reflect"
 )
 
