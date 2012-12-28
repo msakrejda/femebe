@@ -59,11 +59,9 @@ func TestEcho(t *testing.T) {
 	buf := NewPackBuffer(1024)
 
 	ms := NewServerMessageStream("echo", buf)
-	print("sending")
 	ms.Send(&ping)
 	t.Logf("%v", buf)
 
-	print("recv")
 	ms.Next(&pong)
 
 	rest, _ := pong.Force()
