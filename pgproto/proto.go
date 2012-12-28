@@ -44,13 +44,13 @@ func InitRowDescription(m *Message, fields []FieldDescription) {
 	buf := bytes.NewBuffer(msgBytes)
 	WriteInt16(buf, int16(len(fields)))
 	for _, field := range fields {
-		WriteCString(buf, field.name)
-		WriteInt32(buf, field.tableOid)
-		WriteInt16(buf, field.tableAttNo)
-		WriteUint32(buf, field.typeOid)
-		WriteInt16(buf, field.typLen)
-		WriteInt32(buf, field.atttypmod)
-		WriteInt16(buf, int16(field.format))
+		WriteCString(buf, field.Name)
+		WriteInt32(buf, field.TableOid)
+		WriteInt16(buf, field.TableAttNo)
+		WriteUint32(buf, field.TypeOid)
+		WriteInt16(buf, field.TypLen)
+		WriteInt32(buf, field.Atttypmod)
+		WriteInt16(buf, int16(field.Format))
 	}
 
 	m.InitFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
@@ -100,13 +100,13 @@ func ReadQuery(msg *Message) (*Query, error) {
 }
 
 type FieldDescription struct {
-	name       string
-	tableOid   int32
-	tableAttNo int16
-	typeOid    uint32
-	typLen     int16
-	atttypmod  int32
-	format     EncFmt
+	Name       string
+	TableOid   int32
+	TableAttNo int16
+	TypeOid    uint32
+	TypLen     int16
+	Atttypmod  int32
+	Format     EncFmt
 }
 
 func encodeValue(buff *bytes.Buffer, val interface{},
@@ -138,7 +138,7 @@ func encodeValue(buff *bytes.Buffer, val interface{},
 }
 
 type RowDescription struct {
-	fields []FieldDescription
+	Fields []FieldDescription
 }
 
 func ReadRowDescription(msg *Message) (
@@ -198,8 +198,8 @@ func InitAuthenticationOk(m *Message) {
 }
 
 type BackendKeyData struct {
-	pid int32
-	key int32
+	Pid int32
+	Key int32
 }
 
 func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {
@@ -226,7 +226,7 @@ func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {
 		return nil, err
 	}
 
-	return &BackendKeyData{pid: pid, key: key}, err
+	return &BackendKeyData{Pid: pid, Key: key}, err
 }
 
 // FEBE Message type constants shamelessly stolen from the pq library.
