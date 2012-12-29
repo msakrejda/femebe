@@ -4,6 +4,7 @@ import (
 	"bytes"
 	. "femebe"
 	"fmt"
+	"io"
 	"reflect"
 )
 
@@ -191,6 +192,43 @@ func ReadRowDescription(msg *Message) (
 	}
 
 	return &RowDescription{fields}, nil
+}
+
+type DataRow struct {
+	Values [][]byte
+}
+
+func ReadDataRow(m *Message) (*DataRow, error) {
+	if m.MsgType() != MSG_DATA_ROW_D {
+		return nil, ErrBadTypeCode{
+			fmt.Errorf("Invalid message type %v", m.MsgType())}
+	}
+	b := m.Payload()
+	fieldCount, err := ReadUint16(b)
+	if err != nil {
+		return nil, err
+	}
+
+	values := make([][]byte, fieldCount)
+
+	for i := range values {
+		fieldLen, err := ReadInt32(b)
+		if err != nil {
+			return nil, err
+		}
+		if fieldLen >= 0 {
+			fieldData := make([]byte, fieldLen)
+			io.ReadFull(b, fieldData)
+			values[i] = fieldData
+		} else if fieldLen == -1 {
+			values[i] = nil
+		} else {
+			return nil, ErrWrongSize{
+				fmt.Errorf("Invalid length %v for field %v",
+					fieldLen, i)}
+		}
+	}
+	return &DataRow{values}, nil
 }
 
 func InitAuthenticationOk(m *Message) {
