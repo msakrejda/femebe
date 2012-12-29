@@ -125,3 +125,13 @@ func (m *Message) InitPromise(msgType byte, size uint32,
 
 	m.union = io.MultiReader(&m.buffered, m.future)
 }
+
+func (m *Message) InitFromMessage(src *Message) {
+	payloadBytes, err := src.Force()
+	if err != nil {
+		panic(err)
+	}
+	dstBytes := make([]byte, len(payloadBytes), len(payloadBytes))
+	copy(dstBytes, payloadBytes)
+	m.InitFromBytes(src.MsgType(), dstBytes)
+}
