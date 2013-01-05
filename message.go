@@ -63,9 +63,8 @@ func (m *Message) Force() ([]byte, error) {
 	return m.buffered.Bytes(), err
 }
 
-var bufBack [4]byte
-
 func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
+	var bufBack [4]byte
 	var totalN int64
 
 	if mt := m.MsgType(); mt != MSG_TYPE_FIRST {
