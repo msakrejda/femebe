@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"regexp"
+	"strconv"
 )
 
 type ErrBadTypeCode struct {
@@ -162,7 +164,6 @@ func ReadRowDescription(msg *Message) (
 		if err != nil {
 			return nil, err
 		}
-
 		tableOid, err := ReadInt32(b)
 		if err != nil {
 			return nil, err
@@ -231,6 +232,59 @@ func ReadDataRow(m *Message) (*DataRow, error) {
 	}
 	return &DataRow{values}, nil
 }
+
+type CommandComplete struct {
+	Tag string
+	AffectedCount uint64
+	Oid uint32
+}
+
+func ReadCommandComplete(m *Message) (*CommandComplete, error) {
+	if m.MsgType() != MSG_COMMAND_COMPLETE_C {
+		return nil, ErrBadTypeCode{
+			fmt.Errorf("Invalid message type %v", m.MsgType())}
+	}
+
+	p := m.Payload()
+	fullTag, err := ReadCString(p)
+	if err != nil {
+		return nil, err
+	}
+
+	cmdRe := regexp.MustCompile("(INSERT|DELETE|UPDATE|SELECT|MOVE|FETCH|COPY) (\\d+)(?: (\\d+))?")
+	if match := cmdRe.FindStringSubmatch(fullTag); match != nil {
+		var rowcountIdx int
+		var rowcount uint64
+		var oid uint32
+
+		hasOid := len(match) == 4 && match[3] != ""
+		tag := match[1]
+
+		if hasOid {
+			val, err := strconv.ParseUint(match[2], 10, 32)
+			if err != nil {
+				panic("Oh snap")
+			}
+			oid = uint32(val)
+			rowcountIdx = 3
+		} else {
+			rowcountIdx = 2
+			oid = 0
+		}
+
+		rowcount, err := strconv.ParseUint(match[rowcountIdx], 10, 64)
+		if err != nil {
+			panic("Oh snap")
+		}
+
+		return &CommandComplete{tag, rowcount, oid}, nil
+	} else {
+		return &CommandComplete{fullTag, 0, 0}, nil
+	}
+
+	panic("Oh snap")
+}
+
 
 func InitAuthenticationOk(m *Message) {
 	m.InitFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
