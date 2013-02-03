@@ -57,16 +57,17 @@ func InitRowDescription(m *Message, fields []FieldDescription) {
 	m.InitFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
 }
 
-// InitDataRow initializes the Message m as a DataRow message with
-// data from the value array cols.
-func InitDataRow(m *Message, cols []interface{}) {
-	msgBytes := make([]byte, 0, 2+len(cols)*4)
+func InitDataRow(m *Message, encodedData [][]byte) {
+	dataSize := 0
+	for _, colVal := range encodedData {
+		dataSize += len(colVal)
+	}
+	msgBytes := make([]byte, 0, 2 + dataSize)
 	buf := bytes.NewBuffer(msgBytes)
-	colCount := int16(len(cols))
+	colCount := int16(len(encodedData))
 	WriteInt16(buf, colCount)
-	for _, val := range cols {
-		// TODO: allow format specification
-		encodeValue(buf, val, ENC_FMT_TEXT)
+	for _, colVal := range encodedData {
+		buf.Write(colVal)
 	}
 
 	m.InitFromBytes(MSG_DATA_ROW_D, buf.Bytes())
