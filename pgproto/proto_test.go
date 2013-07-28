@@ -21,11 +21,11 @@ func TestBackendKeyReading(t *testing.T) {
 		t.Fatal()
 	}
 
-	if kd.pid != PID {
+	if kd.Pid != PID {
 		t.Fatal()
 	}
 
-	if kd.key != KEY {
+	if kd.Key != KEY {
 		t.Fatal()
 	}
 }
