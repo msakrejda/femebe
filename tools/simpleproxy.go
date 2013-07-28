@@ -48,7 +48,7 @@ type ProxyPair struct {
 }
 
 func NewSimpleProxySession(errch chan error,
-	client *ProxyPair, server *ProxyPair) *session {
+	fe *ProxyPair, be *ProxyPair) *session {
 	mover := func(from, to *ProxyPair) func() {
 		return func() {
 			var err error
@@ -83,8 +83,8 @@ func NewSimpleProxySession(errch chan error,
 	}
 
 	return &session{
-		ingress: mover(client, server),
-		egress:  mover(server, client),
+		ingress: mover(fe, be),
+		egress:  mover(be, fe),
 	}
 }
 
@@ -103,7 +103,7 @@ func newBufWriteCon(c net.Conn) *bufWriteCon {
 //
 // This redelegates to more specific proxy handlers that contain the
 // main proxy loop logic.
-func handleConnection(cConn net.Conn, serverAddr string) {
+func handleConnection(feConn net.Conn, serverAddr string) {
 	var err error
 
 	// Log disconnections
@@ -115,12 +115,12 @@ func handleConnection(cConn net.Conn, serverAddr string) {
 		}
 	}()
 
-	defer cConn.Close()
+	defer feConn.Close()
 
-	c := femebe.NewClientMessageStream(
-		"Client", newBufWriteCon(cConn))
+	c := femebe.NewFrontendMessageStream(
+		"FE", newBufWriteCon(feConn))
 
-	unencryptServerConn, err := autoDial(serverAddr)
+	unencryptedBeConn, err := autoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
@@ -128,20 +128,20 @@ func handleConnection(cConn net.Conn, serverAddr string) {
 	tlsConf := tls.Config{}
 	tlsConf.InsecureSkipVerify = true
 
-	sConn, err := femebe.NegotiateTLS(
-		unencryptServerConn, "prefer", &tlsConf)
+	beConn, err := femebe.NegotiateTLS(
+		unencryptedBeConn, "prefer", &tlsConf)
 	if err != nil {
 		fmt.Printf("Could not negotiate TLS: %v\n", err)
 	}
 
-	s := femebe.NewServerMessageStream("Server", newBufWriteCon(sConn))
+	s := femebe.NewBackendMessageStream("BE", newBufWriteCon(beConn))
 	if err != nil {
 		fmt.Printf("Could not initialize connection to server: %v\n", err)
 	}
 
 	done := make(chan error)
-	NewSimpleProxySession(done, &ProxyPair{c, cConn},
-		&ProxyPair{s, sConn}).start()
+	NewSimpleProxySession(done, &ProxyPair{c, feConn},
+		&ProxyPair{s, beConn}).start()
 
 	// Both sides must exit to finish
 	_ = <-done

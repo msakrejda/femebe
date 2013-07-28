@@ -64,14 +64,14 @@ func NegotiateTLS(c net.Conn, sslmode string, config *tls.Config) (
 	return c, nil
 }
 
-func NewClientMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
+func NewFrontendMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	c := baseNewMessageStream(name, rw)
 	c.state = CONN_STARTUP
 
 	return c
 }
 
-func NewServerMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
+func NewBackendMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	c := baseNewMessageStream(name, rw)
 	c.state = CONN_NORMAL
 

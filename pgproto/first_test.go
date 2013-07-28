@@ -7,7 +7,7 @@ import (
 )
 
 func TestStartupSerDes(t *testing.T) {
-	ms, _ := newTestClientStream(t)
+	ms, _ := newTestFrontendStream(t)
 	var m femebe.Message
 	s := Startup{Params: make(map[string]string)}
 
@@ -34,7 +34,7 @@ func firstMessageRoundTrip(t *testing.T,
 	init func(m *femebe.Message)) (*femebe.Message, error) {
 	// Pretend that a bad startup packet is being serialized
 	// and sent to the server.
-	sms, rwc := newTestServerStream(t)
+	sms, rwc := newTestBackendStream(t)
 	var m femebe.Message
 	init(&m)
 	sms.Send(&m)
@@ -42,7 +42,7 @@ func firstMessageRoundTrip(t *testing.T,
 	// Reuse the buffer that has been filled and pretend to be
 	// serving a client connection isntead, which should result in
 	// an error because the startup message is over-sized.
-	cms := femebe.NewClientMessageStream("TestClientStream", rwc)
+	cms := femebe.NewFrontendMessageStream("TestClientStream", rwc)
 	if err := cms.Next(&m); err != nil {
 		return nil, err
 	}

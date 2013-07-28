@@ -21,12 +21,12 @@ func (rwc *inMemRwc) Close() error {
 	return nil
 }
 
-func newTestClientStream(t *testing.T) (*femebe.MessageStream, *inMemRwc) {
+func newTestFrontendStream(t *testing.T) (*femebe.MessageStream, *inMemRwc) {
 	rwc := NewInMemRwc()
-	return femebe.NewClientMessageStream("TestClientConn", rwc), rwc
+	return femebe.NewFrontendMessageStream("TestClientConn", rwc), rwc
 }
 
-func newTestServerStream(t *testing.T) (*femebe.MessageStream, *inMemRwc) {
+func newTestBackendStream(t *testing.T) (*femebe.MessageStream, *inMemRwc) {
 	rwc := NewInMemRwc()
-	return femebe.NewServerMessageStream("TestServerConn", rwc), rwc
+	return femebe.NewBackendMessageStream("TestServerConn", rwc), rwc
 }
