@@ -2,8 +2,12 @@ package pgproto
 
 import (
 	"bytes"
+	"encoding/hex"
 	"femebe"
 	"fmt"
+	"log"
+	"strconv"
+	"time"
 )
 
 func encodeValText(buf *bytes.Buffer,
@@ -44,4 +48,91 @@ func TextEncodeString(buff *bytes.Buffer, val string) {
 
 func TextEncodeBool(buff *bytes.Buffer, val bool) {
 	encodeValText(buff, val, "%t")
+}
+
+// Decode Postgres (text) encoding into a reasonably corresponding Go
+// type (lifted from pq)
+func Decode(s []byte, typ Oid) interface{} {
+	switch typ {
+	case OID_BYTEA:
+		s = s[2:] // trim off "\\x"
+		d := make([]byte, hex.DecodedLen(len(s)))
+		_, err := hex.Decode(d, s)
+		if err != nil {
+			log.Fatalf("femebe: %s", err)
+		}
+		return d
+	case OID_TIMESTAMP:
+		return mustParse("2006-01-02 15:04:05", typ, s)
+	case OID_TIMESTAMPTZ:
+		return mustParse("2006-01-02 15:04:05-07", typ, s)
+	case OID_TIME:
+		return mustParse("15:04:05", typ, s)
+	case OID_TIMETZ:
+		return mustParse("15:04:05-07", typ, s)
+	case OID_DATE:
+		return mustParse("2006-01-02", typ, s)
+	case OID_BOOL:
+		return s[0] == 't'
+	case OID_INT8, OID_INT4, OID_INT2:
+		i, err := strconv.ParseInt(string(s), 10, 64)
+		if err != nil {
+			log.Fatalf("femebe: %s", err)
+		}
+		return i
+	case OID_FLOAT4, OID_FLOAT8:
+		var bits int
+		if typ == OID_FLOAT4 {
+			bits = 32
+		} else {
+			bits = 64
+		}
+		f, err := strconv.ParseFloat(string(s), bits)
+		if err != nil {
+			log.Fatalf("femebe: %s", err)
+		}
+		return f
+	default:
+		return s
+	}
+}
+
+func mustParse(f string, typ Oid, s []byte) time.Time {
+	str := string(s)
+
+	// Special case until time.Parse bug is fixed:
+	// http://code.google.com/p/go/issues/detail?id=3487
+	if str[len(str)-2] == '.' {
+		str += "0"
+	}
+
+	// check for a 30-minute-offset timezone
+	if (typ == OID_TIMESTAMPTZ || typ == OID_TIMETZ) &&
+		str[len(str)-3] == ':' {
+		f += ":00"
+	}
+	t, err := time.Parse(f, str)
+	if err != nil {
+		log.Fatalf("femebe: decode: %s", err)
+	}
+	return t
+}
+
+// Describe which Go type this Postgres OID will map to in the scheme
+// above
+func DescribeType(typ Oid) string {
+	switch typ {
+	case OID_BYTEA:
+		return "[]byte"
+	case OID_TIMESTAMP, OID_TIMESTAMPTZ, OID_TIME, OID_TIMETZ, OID_DATE:
+		return "time.Time"
+	case OID_BOOL:
+		return "boolean"
+	case OID_INT8, OID_INT4, OID_INT2:
+		return "int64"
+	case OID_FLOAT4, OID_FLOAT8:
+		return "float64"
+	default:
+		return "unknown"
+	}
 }
