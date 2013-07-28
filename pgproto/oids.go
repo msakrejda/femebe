@@ -5,12 +5,12 @@ package pgproto
 // where each cell corresponds to a column. It returns a slice of oid
 // values of the mapped oids, or OID_UNKNOWN where no mapping could
 // be determined.
-func GuessOids(rows [][]interface{}) (oids []uint32) {
+func GuessOids(rows [][]interface{}) (oids []Oid) {
 	if len(rows) == 0 {
-		// can;t really make much of a guess here
-		return []uint32{}
+		// can't really make much of a guess here
+		return []Oid{}
 	}
-	oids = make([]uint32, len(rows[0]))
+	oids = make([]Oid, len(rows[0]))
 	for _, row := range rows {
 		gotAll := true
 		for i, _ := range oids {
@@ -30,7 +30,7 @@ func GuessOids(rows [][]interface{}) (oids []uint32) {
 
 // MappedOid returns the Postgres oid mapped to the type of the given
 // value in femebe, or OID_UNKNOWN if no mapping exists.
-func MappedOid(val interface{}) uint32 {
+func MappedOid(val interface{}) Oid {
 	switch val.(type) {
 	case nil:
 		// we can't determine a type here
@@ -59,7 +59,7 @@ func MappedOid(val interface{}) uint32 {
 // TypSize returns the size in bytes of the Postgres type specified by
 // typOid, where undertood by femebe. For variable-length types or if
 // the type is not known, -1 is returned.
-func TypSize(typOid uint32) int16 {
+func TypSize(typOid Oid) int16 {
 	// TODO: right now, we hardcode the length of the various types
 	// here; ideally, we should have a mapping for the fixed-length
 	// types (although it seems that all the dynamic-length types,
@@ -84,12 +84,14 @@ func TypSize(typOid uint32) int16 {
 	panic("Oh snap!")
 }
 
+type Oid uint32
+
 // The oids of the Postgres built-in types
 const (
 	// generated via
 	// psql -qAt -F $'\t' -p 5434 postgres -c
 	//   "select 'OID_' || upper(typname), '=' || oid from pg_type"
-	OID_BOOL                                  uint32 = 16
+	OID_BOOL                                     Oid = 16
 	OID_BYTEA                                        = 17
 	OID_CHAR                                         = 18
 	OID_NAME                                         = 19

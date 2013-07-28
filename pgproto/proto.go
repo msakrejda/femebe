@@ -34,7 +34,7 @@ func InitReadyForQuery(m *Message, connState ConnStatus) error {
 	return nil
 }
 
-func NewField(name string, typOid uint32) *FieldDescription {
+func NewField(name string, typOid Oid) *FieldDescription {
 	typSize := TypSize(typOid)
 	return &FieldDescription{name, 0, 0, typOid, typSize, -1, ENC_FMT_TEXT}
 }
@@ -48,9 +48,9 @@ func InitRowDescription(m *Message, fields []FieldDescription) {
 	WriteInt16(buf, int16(len(fields)))
 	for _, field := range fields {
 		WriteCString(buf, field.Name)
-		WriteInt32(buf, field.TableOid)
+		WriteUint32(buf, uint32(field.TableOid))
 		WriteInt16(buf, field.TableAttNo)
-		WriteUint32(buf, field.TypeOid)
+		WriteUint32(buf, uint32(field.TypeOid))
 		WriteInt16(buf, field.TypLen)
 		WriteInt32(buf, field.Atttypmod)
 		WriteInt16(buf, int16(field.Format))
@@ -105,9 +105,9 @@ func ReadQuery(msg *Message) (*Query, error) {
 
 type FieldDescription struct {
 	Name       string
-	TableOid   int32
+	TableOid   Oid
 	TableAttNo int16
-	TypeOid    uint32
+	TypeOid    Oid
 	TypLen     int16
 	Atttypmod  int32
 	Format     EncFmt
@@ -189,8 +189,8 @@ func ReadRowDescription(msg *Message) (
 			return nil, err
 		}
 
-		fields[i] = FieldDescription{name, tableOid, tableAttNo,
-			typeOid, typLen, atttypmod, EncFmt(format)}
+		fields[i] = FieldDescription{name, Oid(tableOid), tableAttNo,
+			Oid(typeOid), typLen, atttypmod, EncFmt(format)}
 	}
 
 	return &RowDescription{fields}, nil
