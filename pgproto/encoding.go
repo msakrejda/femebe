@@ -17,6 +17,33 @@ func encodeValText(buf *bytes.Buffer,
 	buf.WriteString(result)
 }
 
+func encodeValue(buff *bytes.Buffer, val interface{},
+	format EncFmt) (err error) {
+	if format == ENC_FMT_TEXT {
+		switch val.(type) {
+		case int16:
+			TextEncodeInt16(buff, val.(int16))
+		case int32:
+			TextEncodeInt32(buff, val.(int32))
+		case int64:
+			TextEncodeInt64(buff, val.(int64))
+		case float32:
+			TextEncodeFloat32(buff, val.(float32))
+		case float64:
+			TextEncodeFloat64(buff, val.(float64))
+		case string:
+			TextEncodeString(buff, val.(string))
+		case bool:
+			TextEncodeBool(buff, val.(bool))
+		default:
+			return fmt.Errorf("Can't encode value %#v of type %#T", val, val)
+		}
+	} else {
+		return fmt.Errorf("Can't encode in format %v")
+	}
+	return nil
+}
+
 func BinEncodeInt16(buff *bytes.Buffer, val int16) {
 	femebe.WriteInt32(buff, 2)
 	femebe.WriteInt16(buff, val)
