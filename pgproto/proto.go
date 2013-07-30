@@ -63,7 +63,7 @@ func InitDataRow(m *Message, encodedData [][]byte) {
 	for _, colVal := range encodedData {
 		dataSize += len(colVal)
 	}
-	msgBytes := make([]byte, 0, 2 + dataSize)
+	msgBytes := make([]byte, 0, 2+dataSize)
 	buf := bytes.NewBuffer(msgBytes)
 	colCount := int16(len(encodedData))
 	WriteInt16(buf, colCount)
@@ -205,9 +205,9 @@ func ReadDataRow(m *Message) (*DataRow, error) {
 }
 
 type CommandComplete struct {
-	Tag string
+	Tag           string
 	AffectedCount uint64
-	Oid uint32
+	Oid           uint32
 }
 
 func ReadCommandComplete(m *Message) (*CommandComplete, error) {
@@ -326,53 +326,66 @@ func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {
 // http://www.postgresql.org/docs/current/static/protocol-error-fields.html
 func DescribeStatusCode(code byte) string {
 	switch code {
-		// The field contents are ERROR, FATAL, or PANIC (in an error
-		// message), or WARNING, NOTICE, DEBUG, INFO, or LOG (in a
-		// notice message), or a localized translation of one of
-		// these. Always present.
-	case 'S': return "Severity"
+	// The field contents are ERROR, FATAL, or PANIC (in an error
+	// message), or WARNING, NOTICE, DEBUG, INFO, or LOG (in a
+	// notice message), or a localized translation of one of
+	// these. Always present.
+	case 'S':
+		return "Severity"
 		// The SQLSTATE code for the error (see Appendix A at
 		// http://www.postgresql.org/docs/current/static/errcodes-appendix.html
 		// ). Not localizable. Always present.
-	case 'C': return "Code"
+	case 'C':
+		return "Code"
 		// The primary human-readable error message. This should be
 		// accurate but terse (typically one line). Always present.
-	case 'M': return "Message"
+	case 'M':
+		return "Message"
 		// An optional secondary error message carrying more detail
 		// about the problem. Might run to multiple lines.
-	case 'D': return "Detail"
+	case 'D':
+		return "Detail"
 		// An optional suggestion what to do about the problem. This
 		// is intended to differ from Detail in that it offers advice
 		// (potentially inappropriate) rather than hard facts. Might
 		// run to multiple lines.
-	case 'H': return "Hint"
+	case 'H':
+		return "Hint"
 		// The field value is a decimal ASCII integer, indicating an
 		// error cursor position as an index into the original query
 		// string. The first character has index 1, and positions are
 		// measured in characters not bytes.
-	case 'P': return "Position"
+	case 'P':
+		return "Position"
 		// This is defined the same as the P field, but it is used
 		// when the cursor position refers to an internally generated
 		// command rather than the one submitted by the client. The q
 		// field will always appear when this field appears.
-	case 'p': return "Internal position"
+	case 'p':
+		return "Internal position"
 		// The text of a failed internally-generated command. This
 		// could be, for example, a SQL query issued by a PL/pgSQL
 		// function.
-	case 'q': return "Internal query"
+	case 'q':
+		return "Internal query"
 		// An indication of the context in which the error
 		// occurred. Presently this includes a call stack traceback of
 		// active procedural language functions and
 		// internally-generated queries. The trace is one entry per
 		// line, most recent first.
-	case 'W': return "Where"
+	case 'W':
+		return "Where"
 		// The file name of the source-code location where the error was reported.
-	case 'F': return "File"
+	case 'F':
+		return "File"
 		// the line number of the source-code location where the error was reported.
-	case 'L': return "Line"
+	case 'L':
+		return "Line"
 		// the name of the source-code routine reporting the error.
-	case 'R': return "Routine"
-	default: return fmt.Sprintf("[unknown: %v]", code)
+	case 'R':
+		return "Routine"
+	default:
+		return fmt.Sprintf("[unknown: %v]", code)
 	}
 }
 
