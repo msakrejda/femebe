@@ -22,9 +22,9 @@ type ErrWrongSize struct {
 }
 
 func InitReadyForQuery(m *Message, connState ConnStatus) error {
-	if connState != RFQ_IDLE &&
-		connState != RFQ_INTRANS &&
-		connState != RFQ_ERROR {
+	if connState != RfqIdle &&
+		connState != RfqInTrans &&
+		connState != RfqError {
 		return ErrBadTypeCode{
 			fmt.Errorf("Invalid message type %v", connState)}
 	}
@@ -35,7 +35,7 @@ func InitReadyForQuery(m *Message, connState ConnStatus) error {
 
 func NewField(name string, typOid Oid) *FieldDescription {
 	typSize := TypSize(typOid)
-	return &FieldDescription{name, 0, 0, typOid, typSize, -1, ENC_FMT_TEXT}
+	return &FieldDescription{name, 0, 0, typOid, typSize, -1, EncFmtTxt}
 }
 
 func InitRowDescription(m *Message, fields []FieldDescription) {
@@ -402,24 +402,24 @@ func DescribeStatusCode(code byte) string {
 type EncFmt int16
 
 const (
-	ENC_FMT_TEXT    EncFmt = 0
-	ENC_FMT_BINARY         = 1
-	ENC_FMT_UNKNOWN        = 0
+	EncFmtTxt     EncFmt = 0
+	EncFmtBinary         = 1
+	EncFmtUnknown        = 0
 )
 
 // Special sub-message coding for Close and Describe
 const (
-	IS_PORTAL = 'P'
-	IS_STMT   = 'S'
+	IsPortal = 'P'
+	IsStmt   = 'S'
 )
 
 // Sub-message character coding that is part of ReadyForQuery
 type ConnStatus byte
 
 const (
-	RFQ_IDLE    ConnStatus = 'I'
-	RFQ_INTRANS            = 'T'
-	RFQ_ERROR              = 'E'
+	RfqIdle    ConnStatus = 'I'
+	RfqInTrans            = 'T'
+	RfqError              = 'E'
 )
 
 // Message tags

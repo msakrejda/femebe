@@ -19,7 +19,7 @@ func encodeValText(buf *bytes.Buffer,
 
 func encodeValue(buff *bytes.Buffer, val interface{},
 	format EncFmt) (err error) {
-	if format == ENC_FMT_TEXT {
+	if format == EncFmtTxt {
 		switch val.(type) {
 		case int16:
 			TextEncodeInt16(buff, val.(int16))
