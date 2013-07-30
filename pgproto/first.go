@@ -60,11 +60,11 @@ func ReadStartupMessage(m *femebe.Message) (*Startup, error) {
 	b.InitReader(body)
 	protoVer, _ := femebe.ReadInt32(&b)
 
-	const SUPPORTED_PROTOVER = 0x00030000
-	if protoVer != SUPPORTED_PROTOVER {
+	const SupportedProtover = 0x00030000
+	if protoVer != SupportedProtover {
 		err = ErrStartupVersion{
 			fmt.Errorf("bad version: got %x expected %x",
-				protoVer, SUPPORTED_PROTOVER)}
+				protoVer, SupportedProtover)}
 		return nil, err
 	}
 
@@ -107,5 +107,5 @@ func (s *Startup) FillMessage(m *femebe.Message) {
 
 	buf.Write([]byte{'\000'})
 
-	m.InitFromBytes(femebe.MSG_TYPE_FIRST, buf.Bytes())
+	m.InitFromBytes(femebe.MsgTypeFirst, buf.Bytes())
 }

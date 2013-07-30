@@ -29,7 +29,7 @@ func InitReadyForQuery(m *Message, connState ConnStatus) error {
 			fmt.Errorf("Invalid message type %v", connState)}
 	}
 
-	m.InitFromBytes(MSG_READY_FOR_QUERY_Z, []byte{byte(connState)})
+	m.InitFromBytes(MsgReadyForQueryZ, []byte{byte(connState)})
 	return nil
 }
 
@@ -55,7 +55,7 @@ func InitRowDescription(m *Message, fields []FieldDescription) {
 		WriteInt16(buf, int16(field.Format))
 	}
 
-	m.InitFromBytes(MSG_ROW_DESCRIPTION_T, buf.Bytes())
+	m.InitFromBytes(MsgRowDescriptionT, buf.Bytes())
 }
 
 func InitDataRow(m *Message, encodedData [][]byte) {
@@ -71,7 +71,7 @@ func InitDataRow(m *Message, encodedData [][]byte) {
 		buf.Write(colVal)
 	}
 
-	m.InitFromBytes(MSG_DATA_ROW_D, buf.Bytes())
+	m.InitFromBytes(MsgDataRowD, buf.Bytes())
 }
 
 func InitCommandComplete(m *Message, cmdTag string) {
@@ -79,14 +79,14 @@ func InitCommandComplete(m *Message, cmdTag string) {
 	buf := bytes.NewBuffer(msgBytes)
 	WriteCString(buf, cmdTag)
 
-	m.InitFromBytes(MSG_COMMAND_COMPLETE_C, buf.Bytes())
+	m.InitFromBytes(MsgCommandCompleteC, buf.Bytes())
 }
 
 func InitQuery(m *Message, query string) {
 	msgBytes := make([]byte, 0, len([]byte(query))+1)
 	buf := bytes.NewBuffer(msgBytes)
 	WriteCString(buf, query)
-	m.InitFromBytes(MSG_QUERY_Q, buf.Bytes())
+	m.InitFromBytes(MsgQueryQ, buf.Bytes())
 }
 
 type Query struct {
@@ -118,7 +118,7 @@ type RowDescription struct {
 
 func ReadRowDescription(msg *Message) (
 	rd *RowDescription, err error) {
-	if msg.MsgType() != MSG_ROW_DESCRIPTION_T {
+	if msg.MsgType() != MsgRowDescriptionT {
 		return nil, ErrBadTypeCode{
 			fmt.Errorf("Invalid message type %v", msg.MsgType())}
 	}
@@ -172,7 +172,7 @@ type DataRow struct {
 }
 
 func ReadDataRow(m *Message) (*DataRow, error) {
-	if m.MsgType() != MSG_DATA_ROW_D {
+	if m.MsgType() != MsgDataRowD {
 		return nil, ErrBadTypeCode{
 			fmt.Errorf("Invalid message type %v", m.MsgType())}
 	}
@@ -211,7 +211,7 @@ type CommandComplete struct {
 }
 
 func ReadCommandComplete(m *Message) (*CommandComplete, error) {
-	if m.MsgType() != MSG_COMMAND_COMPLETE_C {
+	if m.MsgType() != MsgCommandCompleteC {
 		return nil, ErrBadTypeCode{
 			fmt.Errorf("Invalid message type %v", m.MsgType())}
 	}
@@ -261,7 +261,7 @@ type ErrorResponse struct {
 }
 
 func ReadErrorResponse(msg *Message) (*ErrorResponse, error) {
-	if msg.MsgType() != MSG_ERROR_RESPONSE_E {
+	if msg.MsgType() != MsgErrorResponseE {
 		return nil, ErrBadTypeCode{
 			fmt.Errorf("Invalid message type %v", msg.MsgType())}
 	}
@@ -286,7 +286,7 @@ func ReadErrorResponse(msg *Message) (*ErrorResponse, error) {
 }
 
 func InitAuthenticationOk(m *Message) {
-	m.InitFromBytes(MSG_AUTHENTICATION_OK_R, []byte{0, 0, 0, 0})
+	m.InitFromBytes(MsgAuthenticationOkR, []byte{0, 0, 0, 0})
 }
 
 type BackendKeyData struct {
@@ -295,7 +295,7 @@ type BackendKeyData struct {
 }
 
 func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {
-	if msg.MsgType() != MSG_BACKEND_KEY_DATA_K {
+	if msg.MsgType() != MsgBackendKeyDataK {
 		return nil, ErrBadTypeCode{
 			fmt.Errorf("Invalid message type %v", msg.MsgType())}
 	}
@@ -424,50 +424,50 @@ const (
 
 // Message tags
 const (
-	MSG_AUTHENTICATION_OK_R                 byte = 'R'
-	MSG_AUTHENTICATION_CLEARTEXT_PASSWORD_R      = 'R'
-	MSG_AUTHENTICATION_M_D5_PASSWORD_R           = 'R'
-	MSG_AUTHENTICATION_S_C_M_CREDENTIAL_R        = 'R'
-	MSG_AUTHENTICATION_G_S_S_R                   = 'R'
-	MSG_AUTHENTICATION_S_S_P_I_R                 = 'R'
-	MSG_AUTHENTICATION_G_S_S_CONTINUE_R          = 'R'
-	MSG_BACKEND_KEY_DATA_K                       = 'K'
-	MSG_BIND_B                                   = 'B'
-	MSG_BIND_COMPLETE2                           = '2'
-	MSG_CLOSE_C                                  = 'C'
-	MSG_CLOSE_COMPLETE3                          = '3'
-	MSG_COMMAND_COMPLETE_C                       = 'C'
-	MSG_COPY_DATAD                               = 'd'
-	MSG_COPY_DONEC                               = 'c'
-	MSG_COPY_FAILF                               = 'f'
-	MSG_COPY_IN_RESPONSE_G                       = 'G'
-	MSG_COPY_OUT_RESPONSE_H                      = 'H'
-	MSG_COPY_BOTH_RESPONSE_W                     = 'W'
-	MSG_DATA_ROW_D                               = 'D'
-	MSG_DESCRIBE_D                               = 'D'
-	MSG_EMPTY_QUERY_RESPONSE_I                   = 'I'
-	MSG_ERROR_RESPONSE_E                         = 'E'
-	MSG_EXECUTE_E                                = 'E'
-	MSG_FLUSH_H                                  = 'H'
-	MSG_FUNCTION_CALL_F                          = 'F'
-	MSG_FUNCTION_CALL_RESPONSE_V                 = 'V'
-	MSG_NO_DATAN                                 = 'n'
-	MSG_NOTICE_RESPONSE_N                        = 'N'
-	MSG_NOTIFICATION_RESPONSE_A                  = 'A'
-	MSG_PARAMETER_DESCRIPTIONT                   = 't'
-	MSG_PARAMETER_STATUS_S                       = 'S'
-	MSG_PARSE_P                                  = 'P'
-	MSG_PARSE_COMPLETE1                          = '1'
-	MSG_PASSWORD_MESSAGEP                        = 'p'
-	MSG_PORTAL_SUSPENDEDS                        = 's'
-	MSG_QUERY_Q                                  = 'Q'
-	MSG_READY_FOR_QUERY_Z                        = 'Z'
-	MSG_ROW_DESCRIPTION_T                        = 'T'
+	MsgAuthenticationOkR                byte = 'R'
+	MsgAuthenticationCleartextPasswordR      = 'R'
+	MsgAuthenticationMD5PasswordR            = 'R'
+	MsgAuthenticationSCMCredentialR          = 'R'
+	MsgAuthenticationGSSR                    = 'R'
+	MsgAuthenticationSSPIR                   = 'R'
+	MsgAuthenticationGSSContinueR            = 'R'
+	MsgBackendKeyDataK                       = 'K'
+	MsgBindB                                 = 'B'
+	MsgBindComplete2                         = '2'
+	MsgCloseC                                = 'C'
+	MsgCloseComplete3                        = '3'
+	MsgCommandCompleteC                      = 'C'
+	MsgCopyDataD                             = 'd'
+	MsgCopyDoneC                             = 'c'
+	MsgCopyFailF                             = 'f'
+	MsgCopyInResponseG                       = 'G'
+	MsgCopyOutResponseH                      = 'H'
+	MsgCopyBothResponseW                     = 'W'
+	MsgDataRowD                              = 'D'
+	MsgDescribeD                             = 'D'
+	MsgEmptyQueryResponseI                   = 'I'
+	MsgErrorResponseE                        = 'E'
+	MsgExecuteE                              = 'E'
+	MsgFlushH                                = 'H'
+	MsgFunctionCallF                         = 'F'
+	MsgFunctionCallResponseV                 = 'V'
+	MsgNoDataN                               = 'n'
+	MsgNoticeResponseN                       = 'N'
+	MsgNotificationResponseA                 = 'A'
+	MsgParameterDescriptionT                 = 't'
+	MsgParameterStatusS                      = 'S'
+	MsgParseP                                = 'P'
+	MsgParseComplete1                        = '1'
+	MsgPasswordMessageP                      = 'p'
+	MsgPortalSuspendedS                      = 's'
+	MsgQueryQ                                = 'Q'
+	MsgReadyForQueryZ                        = 'Z'
+	MsgRowDescriptionT                       = 'T'
 
 	// SSLRequest is not seen here because we treat SSLRequest as
 	// a protocol negotiation mechanic rather than a first-class
 	// message, so it does not appear here
 
-	MSG_SYNC_S      = 'S'
-	MSG_TERMINATE_X = 'X'
+	MsgSyncS      = 'S'
+	MsgTerminateX = 'X'
 )

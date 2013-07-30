@@ -8,7 +8,7 @@ import (
 
 var ErrTooLarge = errors.New("Message buffering size limit exceeded")
 
-const MSG_TYPE_FIRST = '\000'
+const MsgTypeFirst = '\000'
 
 type Message struct {
 	// Constant-width header
@@ -67,7 +67,7 @@ func (m *Message) WriteTo(w io.Writer) (_ int64, err error) {
 	var bufBack [4]byte
 	var totalN int64
 
-	if mt := m.MsgType(); mt != MSG_TYPE_FIRST {
+	if mt := m.MsgType(); mt != MsgTypeFirst {
 		n, err := w.Write([]byte{mt})
 		totalN += int64(n)
 		if err != nil {

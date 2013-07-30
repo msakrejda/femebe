@@ -81,7 +81,7 @@ func TextEncodeBool(buff *bytes.Buffer, val bool) {
 // type (lifted from pq)
 func Decode(s []byte, typ Oid) interface{} {
 	switch typ {
-	case OID_BYTEA:
+	case OidBytea:
 		s = s[2:] // trim off "\\x"
 		d := make([]byte, hex.DecodedLen(len(s)))
 		_, err := hex.Decode(d, s)
@@ -89,27 +89,27 @@ func Decode(s []byte, typ Oid) interface{} {
 			log.Fatalf("femebe: %s", err)
 		}
 		return d
-	case OID_TIMESTAMP:
+	case OidTimestamp:
 		return mustParse("2006-01-02 15:04:05", typ, s)
-	case OID_TIMESTAMPTZ:
+	case OidTimestamptz:
 		return mustParse("2006-01-02 15:04:05-07", typ, s)
-	case OID_TIME:
+	case OidTime:
 		return mustParse("15:04:05", typ, s)
-	case OID_TIMETZ:
+	case OidTimetz:
 		return mustParse("15:04:05-07", typ, s)
-	case OID_DATE:
+	case OidDate:
 		return mustParse("2006-01-02", typ, s)
-	case OID_BOOL:
+	case OidBool:
 		return s[0] == 't'
-	case OID_INT8, OID_INT4, OID_INT2:
+	case OidInt8, OidInt4, OidInt2:
 		i, err := strconv.ParseInt(string(s), 10, 64)
 		if err != nil {
 			log.Fatalf("femebe: %s", err)
 		}
 		return i
-	case OID_FLOAT4, OID_FLOAT8:
+	case OidFloat4, OidFloat8:
 		var bits int
-		if typ == OID_FLOAT4 {
+		if typ == OidFloat4 {
 			bits = 32
 		} else {
 			bits = 64
@@ -134,7 +134,7 @@ func mustParse(f string, typ Oid, s []byte) time.Time {
 	}
 
 	// check for a 30-minute-offset timezone
-	if (typ == OID_TIMESTAMPTZ || typ == OID_TIMETZ) &&
+	if (typ == OidTimestamptz || typ == OidTimetz) &&
 		str[len(str)-3] == ':' {
 		f += ":00"
 	}
@@ -149,15 +149,15 @@ func mustParse(f string, typ Oid, s []byte) time.Time {
 // above
 func DescribeType(typ Oid) string {
 	switch typ {
-	case OID_BYTEA:
+	case OidBytea:
 		return "[]byte"
-	case OID_TIMESTAMP, OID_TIMESTAMPTZ, OID_TIME, OID_TIMETZ, OID_DATE:
+	case OidTimestamp, OidTimestamptz, OidTime, OidTimetz, OidDate:
 		return "time.Time"
-	case OID_BOOL:
+	case OidBool:
 		return "boolean"
-	case OID_INT8, OID_INT4, OID_INT2:
+	case OidInt8, OidInt4, OidInt2:
 		return "int64"
-	case OID_FLOAT4, OID_FLOAT8:
+	case OidFloat4, OidFloat8:
 		return "float64"
 	default:
 		return "unknown"

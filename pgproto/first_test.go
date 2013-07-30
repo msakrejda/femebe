@@ -52,7 +52,7 @@ func firstMessageRoundTrip(t *testing.T,
 
 func TestHugeStartup(t *testing.T) {
 	init := func(m *femebe.Message) {
-		m.InitPromise(femebe.MSG_TYPE_FIRST, 10005, []byte{},
+		m.InitPromise(femebe.MsgTypeFirst, 10005, []byte{},
 			&bytes.Buffer{})
 	}
 
@@ -71,7 +71,7 @@ func TestHugeStartup(t *testing.T) {
 
 func TestSmallStartup(t *testing.T) {
 	init := func(m *femebe.Message) {
-		m.InitPromise(femebe.MSG_TYPE_FIRST, 7, []byte{},
+		m.InitPromise(femebe.MsgTypeFirst, 7, []byte{},
 			&bytes.Buffer{})
 	}
 

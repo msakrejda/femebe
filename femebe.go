@@ -16,7 +16,7 @@ type Flusher interface {
 // calling Next().  If buffering and less than MSG_HEADER_SIZE remain
 // in the buffer, the remaining bytes must be saved for the next
 // invocation of Next().
-const MSG_HEADER_MIN_SIZE = 5
+const MsgHeaderMinSize = 5
 
 func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 8192))
@@ -66,14 +66,14 @@ func NegotiateTLS(c net.Conn, sslmode string, config *tls.Config) (
 
 func NewFrontendMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	c := baseNewMessageStream(name, rw)
-	c.state = CONN_STARTUP
+	c.state = ConnStartup
 
 	return c
 }
 
 func NewBackendMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
 	c := baseNewMessageStream(name, rw)
-	c.state = CONN_NORMAL
+	c.state = ConnNormal
 
 	return c
 }
@@ -81,9 +81,9 @@ func NewBackendMessageStream(name string, rw io.ReadWriteCloser) *MessageStream 
 type ConnState int32
 
 const (
-	CONN_STARTUP ConnState = iota
-	CONN_NORMAL
-	CONN_ERR
+	ConnStartup ConnState = iota
+	ConnNormal
+	ConnErr
 )
 
 type MessageStream struct {
@@ -101,24 +101,24 @@ type MessageStream struct {
 }
 
 func (c *MessageStream) HasNext() bool {
-	return c.msgRemainder.Len() >= MSG_HEADER_MIN_SIZE
+	return c.msgRemainder.Len() >= MsgHeaderMinSize
 }
 
 func (c *MessageStream) Next(dst *Message) error {
 	switch c.state {
-	case CONN_STARTUP:
+	case ConnStartup:
 		msgSz, err := ReadUint32(c.rw)
 		if err != nil {
 			c.err = err
-			c.state = CONN_ERR
+			c.state = ConnErr
 			return err
 		}
 
-		dst.InitPromise(MSG_TYPE_FIRST, msgSz, []byte{}, c.rw)
-		c.state = CONN_NORMAL
+		dst.InitPromise(MsgTypeFirst, msgSz, []byte{}, c.rw)
+		c.state = ConnNormal
 		return nil
 
-	case CONN_NORMAL:
+	case ConnNormal:
 	again:
 		// Fast-path: if a message can be formed from the
 		// buffer, do so immediately.
@@ -158,7 +158,7 @@ func (c *MessageStream) Next(dst *Message) error {
 		// error has been set in a previous iteration:
 		// transition to CONN_ERR.
 		if !c.HasNext() && c.err != nil {
-			c.state = CONN_ERR
+			c.state = ConnErr
 			return c.err
 		}
 
@@ -191,7 +191,7 @@ func (c *MessageStream) Next(dst *Message) error {
 		// deliver a Promise style message, so just try again.
 		goto again
 
-	case CONN_ERR:
+	case ConnErr:
 		return c.err
 
 	default:

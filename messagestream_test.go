@@ -14,7 +14,7 @@ func newTestMessageStream(t *testing.T) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	ms := MessageStream{
 		Name:         "Test",
-		state:        CONN_NORMAL,
+		state:        ConnNormal,
 		msgRemainder: *buf,
 	}
 
