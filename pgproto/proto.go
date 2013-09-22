@@ -389,16 +389,6 @@ func DescribeStatusCode(code byte) string {
 	}
 }
 
-// FEBE Message type constants shamelessly stolen from the pq library.
-//
-// All the constants in this file have a special naming convention:
-// "msg(NameInManual)(characterCode)".  This results in long and
-// awkward constant names, but also makes it easy to determine what
-// the author's intent is quickly in code (consider that both
-// msgDescribeD and msgDataRowD appear on the wire as 'D') as well as
-// debugging against captured wire protocol traffic (where one will
-// only see 'D', but has a sense what state the protocol is in).
-
 type EncFmt int16
 
 const (
@@ -422,7 +412,17 @@ const (
 	RfqError              = 'E'
 )
 
-// Message tags
+
+// FEBE Message type constants shamelessly stolen from the pq library.
+//
+// All the constants in this file have a special naming convention:
+// "Msg(NameInManual)(characterCode)".  This results in long and
+// awkward constant names, but also makes it easy to determine what
+// the author's intent is quickly in code (consider that both
+// msgDescribeD and msgDataRowD appear on the wire as 'D') as well as
+// debugging against captured wire protocol traffic (where one will
+// only see 'D', but has a sense what state the protocol is in).
+
 const (
 	MsgAuthenticationOkR                byte = 'R'
 	MsgAuthenticationCleartextPasswordR      = 'R'
