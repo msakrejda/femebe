@@ -7,4 +7,3 @@ func errToChannel(fn func() error, ch chan <- error) {
 	for err = fn(); err == nil; err = fn() {}
 	ch <- err
 }
-

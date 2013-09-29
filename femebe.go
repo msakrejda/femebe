@@ -8,8 +8,23 @@ import (
 	"net"
 )
 
+// Flush buffers, returning any error encountered
 type Flusher interface {
 	Flush() error
+}
+
+// A duplex stream of FEBE messages
+type Stream interface {
+	Flusher
+	// Send the Message m on the stream, returning any error
+	// encountered
+	Send(m *Message) error
+	// Check whether another message is available to read from the
+	// stream without blocking
+	HasNext() Bool
+	// Receive the next message, loading it into m. If this
+	// returns an error, the contents of m are undefined.
+	Next(m *Message) error
 }
 
 // The minimum number of bytes required to make a new hybridMsg when
@@ -18,24 +33,55 @@ type Flusher interface {
 // invocation of Next().
 const MsgHeaderMinSize = 5
 
-func baseNewMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
+// State of the stream connection
+type ConnState int32
+
+const (
+	ConnStartup ConnState = iota
+	ConnNormal
+	ConnErr
+)
+
+type MessageStream struct {
+	rw    io.ReadWriteCloser
+	state ConnState
+	err   error
+
+	// Incomplete message headers that should be chained into
+	// message parsing with the subsequent .Next() invocation.
+	msgRemainder bytes.Buffer
+
+	// To avoid allocation in inner loops
+	scratchBuf [8192]byte
+}
+
+func baseNewMessageStream(rw io.ReadWriteCloser, state ConnState) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 8192))
 
 	return &MessageStream{
-		Name:         name,
 		rw:           rw,
 		msgRemainder: *buf,
+		state:        state,
 	}
 }
 
-type Config struct {
-	Name    string
-	Sslmode string
+type SSLMode string
+
+const (
+	SSLDisable SSLMode = "disable"
+	SSLAllow           = "allow"
+	SSLPrefer          = "prefer"
+	SSLRequire         = "require"
+)
+
+type SSLConfig struct {
+	tls.Config
+	Mode SSLMode
 }
 
-func NegotiateTLS(c net.Conn, sslmode string, config *tls.Config) (
-	net.Conn, error) {
-	if sslmode != "disable" {
+func NegotiateTLS(c net.Conn, config *SSLConfig) (net.Conn, error) {
+	sslMode := config.Mode
+	if sslmode != SSLDisable {
 		// send an SSLRequest message
 		// length: int32(8)
 		// code:   int32(80877103)
@@ -50,8 +96,8 @@ func NegotiateTLS(c net.Conn, sslmode string, config *tls.Config) (
 
 		if sslResponse[0] == 'S' {
 			return tls.Client(c, config), nil
-		} else if sslResponse[0] == 'N' && sslmode != "allow" &&
-			sslmode != "prefer" {
+		} else if sslResponse[0] == 'N' && sslmode != SSLAllow &&
+			sslmode != SSLPrefer {
 			// reject; we require ssl
 			return nil, errors.New("SSL required but declined by server.")
 		} else {
@@ -64,40 +110,12 @@ func NegotiateTLS(c net.Conn, sslmode string, config *tls.Config) (
 	return c, nil
 }
 
-func NewFrontendMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
-	c := baseNewMessageStream(name, rw)
-	c.state = ConnStartup
-
-	return c
+func NewFrontendMessageStream(rw io.ReadWriteCloser) *MessageStream {
+	return baseNewMessageStream(rw, ConnStartup)
 }
 
-func NewBackendMessageStream(name string, rw io.ReadWriteCloser) *MessageStream {
-	c := baseNewMessageStream(name, rw)
-	c.state = ConnNormal
-
-	return c
-}
-
-type ConnState int32
-
-const (
-	ConnStartup ConnState = iota
-	ConnNormal
-	ConnErr
-)
-
-type MessageStream struct {
-	Name  string
-	rw    io.ReadWriteCloser
-	state ConnState
-	err   error
-
-	// Incomplete message headers that should be chained into
-	// message parsing with the subsequent .Next() invocation.
-	msgRemainder bytes.Buffer
-
-	// To avoid allocation in inner loops
-	scratchBuf [8192]byte
+func NewBackendMessageStream(rw io.ReadWriteCloser) *MessageStream {
+	return baseNewMessageStream(rw, ConnNormal)
 }
 
 func (c *MessageStream) HasNext() bool {

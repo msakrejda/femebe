@@ -117,24 +117,20 @@ func handleConnection(feConn net.Conn, serverAddr string) {
 
 	defer feConn.Close()
 
-	c := femebe.NewFrontendMessageStream(
-		"FE", newBufWriteCon(feConn))
+	c := femebe.NewFrontendMessageStream(newBufWriteCon(feConn))
 
 	unencryptedBeConn, err := autoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
 
-	tlsConf := tls.Config{}
-	tlsConf.InsecureSkipVerify = true
-
-	beConn, err := femebe.NegotiateTLS(
-		unencryptedBeConn, "prefer", &tlsConf)
+	conf := &SSLConfig{tls.Config{InsecureSkipVerify: true}, SSLPrefer}
+	beConn, err := femebe.NegotiateTLS(unencryptedBeConn, conf)
 	if err != nil {
 		fmt.Printf("Could not negotiate TLS: %v\n", err)
 	}
 
-	s := femebe.NewBackendMessageStream("BE", newBufWriteCon(beConn))
+	s := femebe.NewBackendMessageStream(newBufWriteCon(beConn))
 	if err != nil {
 		fmt.Printf("Could not initialize connection to server: %v\n", err)
 	}
