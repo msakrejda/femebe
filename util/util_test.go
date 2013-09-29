@@ -1,24 +1,9 @@
-package femebe
+package util
 
 import (
-	"bytes"
 	"errors"
-	"io"
 	"testing"
 )
-
-type closableBuffer struct {
-	io.ReadWriter
-}
-
-func (c *closableBuffer) Close() error {
-	// noop, to satisfy interface
-	return nil
-}
-
-func newClosableBuffer(buf *bytes.Buffer) *closableBuffer {
-	return &closableBuffer{buf}
-}
 
 func TestErrToChannel(t *testing.T) {
 	expectErr := func(errCh <- chan error) {

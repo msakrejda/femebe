@@ -1,37 +1,43 @@
-package pgproto
+package message
 
 import (
 	"bytes"
-	. "femebe"
+	. "github.com/deafbybeheading/femebe"
+	. "github.com/deafbybeheading/femebe/pgproto"
+	e "github.com/deafbybeheading/femebe/error"
 	"fmt"
 	"io"
 	"regexp"
 	"strconv"
 )
 
-type ErrBadTypeCode struct {
-	error
-}
+func InitStartupMessage(m *Message, params map[string]string) {
+	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	// Protocol V3 header
+	// TODO: make this configurable. maybe.
+	buf.Write([]byte{0x00, 0x03, 0x00, 0x00})
 
-type ErrTooBig struct {
-	error
-}
-
-type ErrWrongSize struct {
-	error
-}
-
-func InitReadyForQuery(m *Message, connState ConnStatus) error {
-	if connState != RfqIdle &&
-		connState != RfqInTrans &&
-		connState != RfqError {
-		return ErrBadTypeCode{
-			fmt.Errorf("Invalid message type %v", connState)}
+	for name, value := range params {
+		WriteCString(buf, name)
+		WriteCString(buf, value)
 	}
 
-	m.InitFromBytes(MsgReadyForQueryZ, []byte{byte(connState)})
-	return nil
+	buf.Write([]byte{'\000'})
+
+	m.InitFromBytes(MsgTypeFirst, buf.Bytes())
 }
+
+func InitCancel(m *Message, backendPid, secretKey int32) {
+	buf := bytes.NewBuffer(make([]byte, 0, 8))
+	WriteInt32(buf, backendPid)
+	WriteInt32(buf, secretKey)
+	m.InitFromBytes(MsgTypeFirst, buf.Bytes())	
+}
+
+func InitReadyForQuery(m *Message, connState ConnStatus) {
+	m.InitFromBytes(MsgReadyForQueryZ, []byte{byte(connState)})
+}
+
 
 func NewField(name string, typOid Oid) *FieldDescription {
 	typSize := TypSize(typOid)
@@ -118,9 +124,8 @@ type RowDescription struct {
 
 func ReadRowDescription(msg *Message) (
 	rd *RowDescription, err error) {
-	if msg.MsgType() != MsgRowDescriptionT {
-		return nil, ErrBadTypeCode{
-			fmt.Errorf("Invalid message type %v", msg.MsgType())}
+	if t := msg.MsgType(); t != MsgRowDescriptionT {
+		return nil, e.BadTypeCode(t)
 	}
 
 	b := msg.Payload()
@@ -172,9 +177,8 @@ type DataRow struct {
 }
 
 func ReadDataRow(m *Message) (*DataRow, error) {
-	if m.MsgType() != MsgDataRowD {
-		return nil, ErrBadTypeCode{
-			fmt.Errorf("Invalid message type %v", m.MsgType())}
+	if t := m.MsgType(); t != MsgDataRowD {
+		return nil, e.BadTypeCode(t)
 	}
 	b := m.Payload()
 	fieldCount, err := ReadUint16(b)
@@ -196,9 +200,8 @@ func ReadDataRow(m *Message) (*DataRow, error) {
 		} else if fieldLen == -1 {
 			values[i] = nil
 		} else {
-			return nil, ErrWrongSize{
-				fmt.Errorf("Invalid length %v for field %v",
-					fieldLen, i)}
+			return nil, e.WrongSize("Invalid length %v for field %v",
+					fieldLen, i)
 		}
 	}
 	return &DataRow{values}, nil
@@ -211,9 +214,8 @@ type CommandComplete struct {
 }
 
 func ReadCommandComplete(m *Message) (*CommandComplete, error) {
-	if m.MsgType() != MsgCommandCompleteC {
-		return nil, ErrBadTypeCode{
-			fmt.Errorf("Invalid message type %v", m.MsgType())}
+	if t := m.MsgType(); t != MsgCommandCompleteC {
+		return nil, e.BadTypeCode(t)
 	}
 
 	p := m.Payload()
@@ -261,9 +263,8 @@ type ErrorResponse struct {
 }
 
 func ReadErrorResponse(msg *Message) (*ErrorResponse, error) {
-	if msg.MsgType() != MsgErrorResponseE {
-		return nil, ErrBadTypeCode{
-			fmt.Errorf("Invalid message type %v", msg.MsgType())}
+	if t := msg.MsgType(); t != MsgErrorResponseE {
+		return nil, e.BadTypeCode(t)
 	}
 
 	p := msg.Payload()
@@ -295,16 +296,14 @@ type BackendKeyData struct {
 }
 
 func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {
-	if msg.MsgType() != MsgBackendKeyDataK {
-		return nil, ErrBadTypeCode{
-			fmt.Errorf("Invalid message type %v", msg.MsgType())}
+	if t := msg.MsgType(); t != MsgBackendKeyDataK {
+		return nil, e.BadTypeCode(t)
 	}
 
 	const RIGHT_SZ = 12
 	if msg.Size() != RIGHT_SZ {
-		return nil, ErrWrongSize{
-			fmt.Errorf("BackendKeyData is wrong size: "+
-				"expected %v, got %v", RIGHT_SZ, msg.Size())}
+		return nil, e.WrongSize("BackendKeyData is wrong size: "+
+			"expected %v, got %v", RIGHT_SZ, msg.Size())
 	}
 
 	r := msg.Payload()

@@ -1,4 +1,11 @@
-package femebe
+package dispatch
+
+import (
+	"errors"
+	"github.com/deafbybeheading/femebe/message"
+	"net"
+	"sync"
+)
 
 type Scaffolding struct {
 	HandleConnection(net.Conn)
@@ -14,7 +21,7 @@ type BackendKeyHolder interface {
 	// If this information is not yet available when this
 	// method is called, or the router does not support
 	// cancellation, it should return (-1, -1).
-	BackendKeyData() int32, int32
+	BackendKeyData() (int32, int32)
 }
 
 // A Router moves protocol messages from the frontend to the backend
@@ -30,7 +37,7 @@ type Router interface {
 type Resolver interface {
 	// Resolve a given startup message into a Connector that can be
 	// used to connect to or send cancellations to the given backend
-	Resolve(protoVersion int, params map[string]string) Connector
+	Resolve(params map[string]string) Connector
 }
 
 type Canceller interface {
@@ -41,56 +48,18 @@ type Canceller interface {
 
 type Connector interface {
 	Canceller
-	// Open a stream to a backend and send a StartupMessage on
-	// that stream before returning it. Return an error if a stream
-	// cannot be established or if sending the startup packet
-	// returns an error
-	Startup() beStream, error
+	// Open a stream to a backend, go through TLS negotiation (if
+	// desired), and send a StartupMessage on that stream before
+	// returning it. Return an error if a stream cannot be
+	// established or if sending the startup packet returns an
+	// error
+	Startup() (Stream, error)
 }
 
 type Session interface {
 	BackendKeyHolder
-	Cancel(int32, int32) error
+	Canceller
 	Run() error
-}
-
-// so...
-func handle(conn net.Conn) {
-	feStream := NewFEStream(conn)
-	var m Message
-	err := feStream.Next(m)
-	if err != nil {
-		// ...
-	}
-	if message.IsStartup(m) {
-		startup, err := message.ReadStartup(&m)
-		if err != nil {
-			// ... 
-		}
-		connector, err := resolver.Resolve(m.Version, m.Options)
-		if err != nil {
-			// ...
-		}
-		beStream, err := connector.Startup()
-		if err != nil {
-			// ...
-		}
-
-		router := femebe.NewSimpleRouter(feStream, beStream)
-		session := femebe.NewSimpleSession(router, connector)
-
-		go manager.RunSession(session)
-
-	} else if message.IsCancel(m) {
-		cancel, err := message.ReadCancel(&m)
-		if err != nil {
-			// ... 
-		}
-		go manager.Cancel(cancel.BackendPid, cancel.SecretKey)
-	} else {
-		// unknown message type: we can't do anything with this
-		_ = conn.Close()
-	}
 }
 
 type SessionError struct {
@@ -100,6 +69,7 @@ type SessionError struct {
 
 type simpleSessionManager struct {
 	sessions []Session
+	sessionLock sync.Mutex
 }
 
 // and...
@@ -110,44 +80,48 @@ func (s *simpleSessionManager) RunSession(session Session) error {
 
 	// N.B.: this is a blocking call that will not return until
 	// the session completes
-	return session.Run()
-}
-
-func (s *simpleSessionManager) Cancel(backendPid, secretKey int32) error {
-	found := false
-	for _, session := range c.sessions {
-		// TODO: we could cache this info once available, but
-		// for a reasonably small number of sessions, there's
-		// probably no point
-		if pid, keyData == session.BackendKeyData() {
-			s.sessionLock.Lock()
-			err := session.Cancel(backendPid, secretKey)
-			if err != nil {
-				s.errors <- err
-			}
-			s.sessionLock.Lock()
-			found = true
+	err := session.Run()
+	s.sessionLock.Lock()
+	for i, si := range s.sessions {
+		if si == session {
+			// slice out this session
+			copy(s.sessions[i:], s.sessions[i+1:])
+			s.sessions[len(s.sessions)-1] = nil
+			s.sessions = s.sessions[:len(s.sessions)-1]
 			break
 		}
 	}
-	if !found {
-		return errors.New("not found")
+	s.sessionLock.Unlock()
+	return err
+}
+
+func (s *simpleSessionManager) Cancel(backendPid, secretKey int32) error {
+	for _, session := range s.sessions {
+		// TODO: we could cache this info once available, but
+		// for a reasonably small number of sessions, there's
+		// probably no point
+		if p, k := session.BackendKeyData(); p == backendPid && k == secretKey  {
+			s.sessionLock.Lock()
+			defer s.sessionLock.Lock()
+			return session.Cancel(backendPid, secretKey)
+		}
 	}
+	return errors.New("not found")
 }
 
 type SimpleConnector struct {
 	backendAddr string
-	startupMessage femebe.Message
-	cancelMessage femebe.Message
+	startupMessage Message
+	cancelMessage Message
 }
 
-func NewSimpleConnector(target string, options map[string]string) Connector, error {
+func NewSimpleConnector(target string, options map[string]string) (Connector, error) {
 	c := &SimpleConnector{backendAddr: target}
-	message.InitStartup(&c.startupMessage)
+	message.InitStartupMessage(&c.startupMessage)
 	return c
 }
 
-func (c *SimpleConnector) dial() Stream, error {
+func (c *SimpleConnector) dial() (Stream, error) {
 	conn, err := net.Dial(backendAddr)
 	if err != nil {
 		return err
@@ -155,7 +129,7 @@ func (c *SimpleConnector) dial() Stream, error {
 	return NewBackendStream(conn)
 }
 
-func (c *SimpleConnector) Startup() Stream, error {
+func (c *SimpleConnector) Startup() (Stream, error) {
 	beStream, err := c.dial()
 	if err != nil {
 		return nil, err

@@ -2,10 +2,7 @@ package femebe
 
 import (
 	"bytes"
-	"crypto/tls"
-	"errors"
 	"io"
-	"net"
 )
 
 // Flush buffers, returning any error encountered
@@ -21,7 +18,7 @@ type Stream interface {
 	Send(m *Message) error
 	// Check whether another message is available to read from the
 	// stream without blocking
-	HasNext() Bool
+	HasNext() bool
 	// Receive the next message, loading it into m. If this
 	// returns an error, the contents of m are undefined.
 	Next(m *Message) error

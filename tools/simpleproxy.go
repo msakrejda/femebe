@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
-	"femebe"
+	"github.com/deafbybeheading/femebe"
 	"fmt"
 	"io"
 	"net"
@@ -98,6 +98,48 @@ func newBufWriteCon(c net.Conn) *bufWriteCon {
 	bw := bufio.NewWriter(c)
 	return &bufWriteCon{c, bw, bw}
 }
+
+
+// so...
+/*
+func handle(conn net.Conn) {
+	feStream := NewFEStream(conn)
+	var m Message
+	err := feStream.Next(m)
+	if err != nil {
+		// ...
+	}
+	if message.IsStartup(m) {
+		startup, err := message.ReadStartup(&m)
+		if err != nil {
+			// ... 
+		}
+		connector, err := resolver.Resolve(m.Version, m.Options)
+		if err != nil {
+			// ...
+		}
+		beStream, err := connector.Startup()
+		if err != nil {
+			// ...
+		}
+
+		router := femebe.NewSimpleRouter(feStream, beStream)
+		session := femebe.NewSimpleSession(router, connector)
+
+		go manager.RunSession(session)
+
+	} else if message.IsCancel(m) {
+		cancel, err := message.ReadCancel(&m)
+		if err != nil {
+			// ... 
+		}
+		go manager.Cancel(cancel.BackendPid, cancel.SecretKey)
+	} else {
+		// unknown message type: we can't do anything with this
+		_ = conn.Close()
+	}
+}
+*/
 
 // Generic connection handler
 //

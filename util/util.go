@@ -1,5 +1,11 @@
 package util
 
+import (
+	"crypto/tls"
+	"errors"
+	"io"
+	"net"
+)
 // Call fn repeatedly until an error is returned; then send the error
 // on the given channel and return
 func errToChannel(fn func() error, ch chan <- error) {
@@ -20,12 +26,12 @@ const (
 )
 
 type SSLConfig struct {
-	tls.Config
 	Mode SSLMode
+	Config tls.Config
 }
 
 func NegotiateTLS(c net.Conn, config *SSLConfig) (net.Conn, error) {
-	sslMode := config.Mode
+	sslmode := config.Mode
 	if sslmode != SSLDisable {
 		// send an SSLRequest message
 		// length: int32(8)
@@ -40,7 +46,7 @@ func NegotiateTLS(c net.Conn, config *SSLConfig) (net.Conn, error) {
 		}
 
 		if sslResponse[0] == 'S' {
-			return tls.Client(c, config), nil
+			return tls.Client(c, &config.Config), nil
 		} else if sslResponse[0] == 'N' && sslmode != SSLAllow &&
 			sslmode != SSLPrefer {
 			// reject; we require ssl

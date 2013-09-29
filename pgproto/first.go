@@ -13,19 +13,9 @@
 package pgproto
 
 import (
-	"bytes"
-	"errors"
-	"femebe"
-	"fmt"
+	"github.com/deafbybeheading/femebe"
+	e "github.com/deafbybeheading/femebe/error"
 )
-
-type ErrStartupVersion struct {
-	error
-}
-
-type ErrStartupFmt struct {
-	error
-}
 
 type Startup struct {
 	Params map[string]string
@@ -37,17 +27,16 @@ func ReadStartupMessage(m *femebe.Message) (*Startup, error) {
 	if remainingSz := m.Size() - 4; remainingSz > 10000 {
 		// Startup packets longer than this are considered
 		// invalid.  Copied from the PostgreSQL source code.
-		err = ErrTooBig{fmt.Errorf(
+		err = e.TooBig(
 			"Rejecting oversized startup packet: got %v",
-			m.Size())}
+			m.Size())
 		return nil, err
 	} else if remainingSz < 4 {
 		// We expect all initialization messages to
 		// have at least a 4-byte header
-		err = ErrWrongSize{
-			fmt.Errorf(
-				"Expected message of at least 4 bytes; got %v",
-				remainingSz)}
+		err = e.WrongSize(
+			"Expected message of at least 4 bytes; got %v",
+			remainingSz)
 		return nil, err
 	}
 
@@ -62,9 +51,8 @@ func ReadStartupMessage(m *femebe.Message) (*Startup, error) {
 
 	const SupportedProtover = 0x00030000
 	if protoVer != SupportedProtover {
-		err = ErrStartupVersion{
-			fmt.Errorf("bad version: got %x expected %x",
-				protoVer, SupportedProtover)}
+		err = e.StartupVersion("bad version: got %x expected %x",
+				protoVer, SupportedProtover)
 		return nil, err
 	}
 
@@ -87,25 +75,8 @@ func ReadStartupMessage(m *femebe.Message) (*Startup, error) {
 	// Fidelity check on the startup packet, whereby the last byte
 	// must be a NUL.
 	if d, _ := femebe.ReadByte(&b); d != '\000' {
-		return nil, ErrStartupFmt{
-			errors.New("malformed startup packet")}
+		return nil, e.StartupFmt("malformed startup packet")
 	}
 
 	return &Startup{params}, nil
-}
-
-func (s *Startup) FillMessage(m *femebe.Message) {
-	buf := bytes.NewBuffer(make([]byte, 0, 1024))
-
-	// Startup-message type word
-	buf.Write([]byte{0x00, 0x03, 0x00, 0x00})
-
-	for name, value := range s.Params {
-		femebe.WriteCString(buf, name)
-		femebe.WriteCString(buf, value)
-	}
-
-	buf.Write([]byte{'\000'})
-
-	m.InitFromBytes(femebe.MsgTypeFirst, buf.Bytes())
 }

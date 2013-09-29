@@ -13,7 +13,6 @@ func InitBogon(m *Message) {
 func newTestMessageStream(t *testing.T) *MessageStream {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	ms := MessageStream{
-		Name:         "Test",
 		state:        ConnNormal,
 		msgRemainder: *buf,
 	}

@@ -2,31 +2,10 @@ package pgproto
 
 import (
 	"bytes"
-	"femebe"
+	"github.com/deafbybeheading/femebe"
+	e "github.com/deafbybeheading/femebe/error"
 	"testing"
 )
-
-func TestStartupSerDes(t *testing.T) {
-	ms, _ := newTestFrontendStream(t)
-	var m femebe.Message
-	s := Startup{Params: make(map[string]string)}
-
-	s.Params["hello"] = "world"
-	s.Params["goodbye"] = "world"
-	s.Params["glory"] = "spite"
-
-	s.FillMessage(&m)
-	ms.Send(&m)
-
-	var deserM femebe.Message
-	ms.Next(&deserM)
-
-	serBytes, _ := m.Force()
-	deserBytes, _ := deserM.Force()
-	if !bytes.Equal(serBytes, deserBytes) {
-		t.Fatal()
-	}
-}
 
 // A helper that initializes a message, writes it into and then then
 // reads it back out of femebe.
@@ -34,7 +13,7 @@ func firstMessageRoundTrip(t *testing.T,
 	init func(m *femebe.Message)) (*femebe.Message, error) {
 	// Pretend that a bad startup packet is being serialized
 	// and sent to the server.
-	sms, rwc := newTestBackendStream(t)
+	sms, rwc := femebe.NewTestBackendStream()
 	var m femebe.Message
 	init(&m)
 	sms.Send(&m)
@@ -42,7 +21,7 @@ func firstMessageRoundTrip(t *testing.T,
 	// Reuse the buffer that has been filled and pretend to be
 	// serving a client connection isntead, which should result in
 	// an error because the startup message is over-sized.
-	cms := femebe.NewFrontendMessageStream("TestClientStream", rwc)
+	cms := femebe.NewFrontendMessageStream(rwc)
 	if err := cms.Next(&m); err != nil {
 		return nil, err
 	}
@@ -62,7 +41,7 @@ func TestHugeStartup(t *testing.T) {
 	}
 
 	_, err = ReadStartupMessage(m)
-	if _, ok := err.(ErrTooBig); ok {
+	if _, ok := err.(e.ErrTooBig); ok {
 		// This is expected
 	} else {
 		t.Fatalf("Got error %#v, and it is not expected", err)
@@ -81,7 +60,7 @@ func TestSmallStartup(t *testing.T) {
 	}
 
 	_, err = ReadStartupMessage(m)
-	if _, ok := err.(ErrWrongSize); ok {
+	if _, ok := err.(e.ErrWrongSize); ok {
 		// This is expected
 	} else {
 		t.Fatalf("Got error %#v, and it is not expected", err)
