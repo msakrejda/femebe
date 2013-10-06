@@ -1,7 +1,9 @@
 package dispatch
 
 import (
+	"crypto/tls"
 	"errors"
+	"fmt"
 	"github.com/deafbybeheading/femebe"
 	"github.com/deafbybeheading/femebe/message"
 	"github.com/deafbybeheading/femebe/util"
@@ -121,6 +123,8 @@ type SimpleConnector struct {
 	cancelMessage femebe.Message
 }
 
+// Make a connector that always prefers TLS and connects using the
+// options specified here.
 func NewSimpleConnector(target string, options map[string]string) Connector {
 	c := &SimpleConnector{backendAddr: target}
 	message.InitStartupMessage(&c.startupMessage, options)
@@ -128,11 +132,21 @@ func NewSimpleConnector(target string, options map[string]string) Connector {
 }
 
 func (c *SimpleConnector) dial() (femebe.Stream, error) {
-	conn, err := util.AutoDial(c.backendAddr)
+	bareConn, err := util.AutoDial(c.backendAddr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not connect to %v: %v", c.backendAddr, err)
 	}
-	return femebe.NewBackendStream(conn), nil
+
+	// the SimpleConnector always prefers TLS
+	beConn, err := util.NegotiateTLS(bareConn, &util.SSLConfig{
+		Mode: util.SSLPrefer,
+		Config: tls.Config{InsecureSkipVerify: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not negotiate TLS: %v", err)
+	}
+
+	return femebe.NewBackendStream(beConn), nil
 }
 
 func (c *SimpleConnector) Startup() (femebe.Stream, error) {
