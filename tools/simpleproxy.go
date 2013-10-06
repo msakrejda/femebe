@@ -4,33 +4,13 @@ import (
 	"bufio"
 	"crypto/tls"
 	"github.com/deafbybeheading/femebe"
+	"github.com/deafbybeheading/femebe/util"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 )
-
-// Automatically chooses between unix sockets and tcp sockets for
-// listening
-func autoListen(place string) (net.Listener, error) {
-	if strings.Contains(place, "/") {
-		return net.Listen("unix", place)
-	}
-
-	return net.Listen("tcp", place)
-}
-
-// Automatically chooses between unix sockets and tcp sockets for
-// dialing.
-func autoDial(place string) (net.Conn, error) {
-	if strings.Contains(place, "/") {
-		return net.Dial("unix", place)
-	}
-
-	return net.Dial("tcp", place)
-}
 
 type session struct {
 	ingress func()
@@ -159,20 +139,20 @@ func handleConnection(feConn net.Conn, serverAddr string) {
 
 	defer feConn.Close()
 
-	c := femebe.NewFrontendMessageStream(newBufWriteCon(feConn))
+	c := femebe.NewFrontendStream(newBufWriteCon(feConn))
 
-	unencryptedBeConn, err := autoDial(serverAddr)
+	unencryptedBeConn, err := util.AutoDial(serverAddr)
 	if err != nil {
 		fmt.Printf("Could not connect to server: %v\n", err)
 	}
 
-	conf := &SSLConfig{tls.Config{InsecureSkipVerify: true}, SSLPrefer}
-	beConn, err := femebe.NegotiateTLS(unencryptedBeConn, conf)
+	conf := &util.SSLConfig{Mode: util.SSLPrefer, Config: tls.Config{InsecureSkipVerify: true}}
+	beConn, err := util.NegotiateTLS(unencryptedBeConn, conf)
 	if err != nil {
 		fmt.Printf("Could not negotiate TLS: %v\n", err)
 	}
 
-	s := femebe.NewBackendMessageStream(newBufWriteCon(beConn))
+	s := femebe.NewBackendStream(newBufWriteCon(beConn))
 	if err != nil {
 		fmt.Printf("Could not initialize connection to server: %v\n", err)
 	}
@@ -193,7 +173,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ln, err := autoListen(os.Args[1])
+	ln, err := util.AutoListen(os.Args[1])
 	if err != nil {
 		fmt.Printf("Could not listen on address: %v\n", err)
 		os.Exit(1)

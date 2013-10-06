@@ -25,11 +25,11 @@ func TestErrToChannel(t *testing.T) {
 		}
 	}
 	errCh := make(chan error, 1)
-	errToChannel(errAfter(1), errCh)
+	ErrToChannel(errAfter(1), errCh)
 	expectErr(errCh)
-	errToChannel(errAfter(2), errCh)
+	ErrToChannel(errAfter(2), errCh)
 	expectErr(errCh)
-	errToChannel(errAfter(5), errCh)
+	ErrToChannel(errAfter(5), errCh)
 	expectErr(errCh)
 	select {
 	case err := <- errCh:

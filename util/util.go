@@ -5,16 +5,33 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 )
 // Call fn repeatedly until an error is returned; then send the error
 // on the given channel and return
-func errToChannel(fn func() error, ch chan <- error) {
+func ErrToChannel(fn func() error, ch chan <- error) {
 	var err error
 	for err = fn(); err == nil; err = fn() {}
 	ch <- err
 }
 
+// Automatically chooses between unix sockets and tcp sockets for
+// listening
+func AutoListen(location string) (net.Listener, error) {
+	if strings.Contains(location, "/") {
+		return net.Listen("unix", location)
+	}
+	return net.Listen("tcp", location)
+}
 
+// Automatically chooses between unix sockets and tcp sockets for
+// dialing.
+func AutoDial(location string) (net.Conn, error) {
+	if strings.Contains(location, "/") {
+		return net.Dial("unix", location)
+	}
+	return net.Dial("tcp", location)
+}
 
 type SSLMode string
 

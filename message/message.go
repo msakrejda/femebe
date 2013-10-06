@@ -27,7 +27,7 @@ func InitStartupMessage(m *Message, params map[string]string) {
 	m.InitFromBytes(MsgTypeFirst, buf.Bytes())
 }
 
-func InitCancel(m *Message, backendPid, secretKey int32) {
+func InitCancelRequest(m *Message, backendPid, secretKey int32) {
 	buf := bytes.NewBuffer(make([]byte, 0, 8))
 	WriteInt32(buf, backendPid)
 	WriteInt32(buf, secretKey)
@@ -293,6 +293,10 @@ func InitAuthenticationOk(m *Message) {
 type BackendKeyData struct {
 	Pid int32
 	Key int32
+}
+
+func IsBackendKeyData(msg *Message) bool {
+	return msg.MsgType() == MsgBackendKeyDataK
 }
 
 func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {

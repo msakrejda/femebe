@@ -40,10 +40,10 @@ func (rwc *inMemRwc) Close() error {
 
 func NewTestFrontendStream() (*MessageStream, io.ReadWriteCloser) {
 	rwc := NewInMemRwc()
-	return NewFrontendMessageStream(rwc), rwc
+	return NewFrontendStream(rwc), rwc
 }
 
 func NewTestBackendStream() (*MessageStream, io.ReadWriteCloser) {
 	rwc := NewInMemRwc()
-	return NewBackendMessageStream(rwc), rwc
+	return NewBackendStream(rwc), rwc
 }

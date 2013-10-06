@@ -2,7 +2,9 @@ package dispatch
 
 import (
 	"errors"
+	"github.com/deafbybeheading/femebe"
 	"github.com/deafbybeheading/femebe/message"
+	"github.com/deafbybeheading/femebe/util"
 	"net"
 	"sync"
 )
@@ -58,7 +60,7 @@ type Connector interface {
 	// returning it. Return an error if a stream cannot be
 	// established or if sending the startup packet returns an
 	// error
-	Startup() (Stream, error)
+	Startup() (femebe.Stream, error)
 }
 
 type Session interface {
@@ -115,62 +117,55 @@ func (s *simpleSessionManager) Cancel(backendPid, secretKey int32) error {
 
 type SimpleConnector struct {
 	backendAddr string
-	startupMessage Message
-	cancelMessage Message
+	startupMessage femebe.Message
+	cancelMessage femebe.Message
 }
 
-func NewSimpleConnector(target string, options map[string]string) (Connector, error) {
+func NewSimpleConnector(target string, options map[string]string) Connector {
 	c := &SimpleConnector{backendAddr: target}
-	message.InitStartupMessage(&c.startupMessage)
+	message.InitStartupMessage(&c.startupMessage, options)
 	return c
 }
 
-func (c *SimpleConnector) dial() (Stream, error) {
-	conn, err := net.Dial(backendAddr)
+func (c *SimpleConnector) dial() (femebe.Stream, error) {
+	conn, err := util.AutoDial(c.backendAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return NewBackendStream(conn)
+	return femebe.NewBackendStream(conn), nil
 }
 
-func (c *SimpleConnector) Startup() (Stream, error) {
+func (c *SimpleConnector) Startup() (femebe.Stream, error) {
 	beStream, err := c.dial()
 	if err != nil {
 		return nil, err
 	}
-	err := beStream.Send(&c.startupMessage)
+	err = beStream.Send(&c.startupMessage)
 	if err != nil {
 		return nil, err
 	}
 	return beStream, nil
 }
 
-func (c *SimpleConnector) Cancel(backendPid, secreteKey int32) error {
+func (c *SimpleConnector) Cancel(backendPid, secretKey int32) error {
 	beStream, err := c.dial()
 	if err != nil {
 		return err
 	}
-	err := femebe.InitCancel(&c.cancelMessage, backendPid, secretKey)
-	if err != nil {
-		return err
-	}
-	err = beStream.Send(&c.cancelMessage)
-	if err != nil {
-		return err
-	}
-	
+	message.InitCancelRequest(&c.cancelMessage, backendPid, secretKey)
+	return beStream.Send(&c.cancelMessage)
 }
 
 type simpleRouter struct {
 	backendPid int32
 	backendKeyData int32
-	from Stream
-	to Stream
-	feBuf Message
-	beBuf Message
+	from femebe.Stream
+	to femebe.Stream
+	feBuf femebe.Message
+	beBuf femebe.Message
 }
 
-func NewSimpleRouter(from, to Stream) Router {
+func NewSimpleRouter(from, to femebe.Stream) Router {
 	return &simpleRouter{
 		backendPid: -1,
 		backendKeyData: -1,
@@ -186,16 +181,16 @@ func (s *simpleRouter) BackendKeyData() (int32, int32) {
 // route the next message from frontend to backend,
 // blocking and flushing if necessary
 func (s *simpleRouter) RouteFrontend() (err error) {
-	err = from.Next(&s.feBuf)
+	err = s.from.Next(&s.feBuf)
 	if err != nil {
 		return
 	}
-	err = to.Send(&s.feBuf)
+	err = s.to.Send(&s.feBuf)
 	if err != nil {
 		return
 	}
-	if !from.HasNext() {
-		return to.Flush()
+	if !s.from.HasNext() {
+		return s.to.Flush()
 	}
 	return
 }
@@ -203,22 +198,23 @@ func (s *simpleRouter) RouteFrontend() (err error) {
 // route the next message from backend to frotnend,
 // blocking and flushing if necessary
 func (s *simpleRouter) RouteBackend() error {
-	err = from.Next(&s.beBuf)
+	err := s.from.Next(&s.beBuf)
 	if err != nil {
-		return
+		return err
 	}
 	if message.IsBackendKeyData(&s.beBuf) {
 		beInfo, err := message.ReadBackendKeyData(&s.beBuf)
 		if err != nil {
-			return
+			return err
 		}
-		s.BackendPid = beInfo.BackendPid
-		s.BackendKeyData = beInfo.BackendKeyData
+		s.backendPid = beInfo.Pid
+		s.backendKeyData = beInfo.Key
 	}
-	err = to.Send(&m)
-	if !from.HasNext() {
-		return to.Flush()
+	err = s.to.Send(&s.beBuf)
+	if !s.from.HasNext() {
+		return s.to.Flush()
 	}
+	return nil
 }
 
 type simpleSession struct {
@@ -232,8 +228,8 @@ func NewSimpleSession(r Router, c Canceller) Session {
 
 func (s *simpleSession) Run() (err error) {
 	errs := make(chan error, 2)
-	routeFrontend := func() { errToChannel(s.router.routeFrotend, errs) }
-	routeBackend := func() { errToChannel(s.router.routeBackend, errs) }
+	routeFrontend := func() { util.ErrToChannel(s.router.RouteFrontend, errs) }
+	routeBackend := func() { util.ErrToChannel(s.router.RouteBackend, errs) }
 	go routeFrontend()
 	go routeBackend()
 	err = <- errs
@@ -243,3 +239,8 @@ func (s *simpleSession) Run() (err error) {
 	_ = <- errs 
 	return
 }
+
+func (s *simpleSession) BackendKeyData()  (int32, int32) {
+	return s.router.BackendKeyData()
+}
+

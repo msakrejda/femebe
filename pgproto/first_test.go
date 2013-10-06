@@ -21,7 +21,7 @@ func firstMessageRoundTrip(t *testing.T,
 	// Reuse the buffer that has been filled and pretend to be
 	// serving a client connection isntead, which should result in
 	// an error because the startup message is over-sized.
-	cms := femebe.NewFrontendMessageStream(rwc)
+	cms := femebe.NewFrontendStream(rwc)
 	if err := cms.Next(&m); err != nil {
 		return nil, err
 	}

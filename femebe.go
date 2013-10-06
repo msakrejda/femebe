@@ -62,11 +62,11 @@ func baseNewMessageStream(rw io.ReadWriteCloser, state ConnState) *MessageStream
 	}
 }
 
-func NewFrontendMessageStream(rw io.ReadWriteCloser) *MessageStream {
+func NewFrontendStream(rw io.ReadWriteCloser) *MessageStream {
 	return baseNewMessageStream(rw, ConnStartup)
 }
 
-func NewBackendMessageStream(rw io.ReadWriteCloser) *MessageStream {
+func NewBackendStream(rw io.ReadWriteCloser) *MessageStream {
 	return baseNewMessageStream(rw, ConnNormal)
 }
 
