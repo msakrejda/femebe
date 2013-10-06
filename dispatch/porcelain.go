@@ -40,6 +40,11 @@ type Resolver interface {
 	Resolve(params map[string]string) Connector
 }
 
+// Can send (or delegate) a Postgres CancelRequest message. Should
+// return an error if it knows that the request will not succeed. Note
+// that due to the nature of the cancellation mechanism, there is no
+// guarantee of success, so the absence of an error does not
+// necessarily mean success.
 type Canceller interface {
 	// Open a stream to a backend and send a cancellation
 	// request with the given data, the close the stream.
@@ -72,7 +77,6 @@ type simpleSessionManager struct {
 	sessionLock sync.Mutex
 }
 
-// and...
 func (s *simpleSessionManager) RunSession(session Session) error {
 	s.sessionLock.Lock()
 	s.sessions = append(s.sessions, session)
