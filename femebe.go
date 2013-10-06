@@ -2,17 +2,13 @@ package femebe
 
 import (
 	"bytes"
+	"github.com/deafbybeheading/femebe/util"
 	"io"
 )
 
-// Flush buffers, returning any error encountered
-type Flusher interface {
-	Flush() error
-}
-
 // A duplex stream of FEBE messages
 type Stream interface {
-	Flusher
+	util.Flusher
 	// Send the Message m on the stream, returning any error
 	// encountered
 	Send(m *Message) error
@@ -22,6 +18,7 @@ type Stream interface {
 	// Receive the next message, loading it into m. If this
 	// returns an error, the contents of m are undefined.
 	Next(m *Message) error
+	Close() error
 }
 
 // The minimum number of bytes required to make a new hybridMsg when
@@ -62,10 +59,18 @@ func baseNewMessageStream(rw io.ReadWriteCloser, state ConnState) *MessageStream
 	}
 }
 
+// Create a new MessageStream for managing messages coming from a FEBE
+// frontend (e.g., psql). The resulting message stream owns the
+// ReadWriteCloser and the caller should not interact with the wrapped
+// object directly.
 func NewFrontendStream(rw io.ReadWriteCloser) *MessageStream {
 	return baseNewMessageStream(rw, ConnStartup)
 }
 
+// Create a new MessageStream for managing messages comfing from a
+// FEBE backend (e.g., Postgres). The resulting message stream owns
+// the ReadWriteCloser and the caller should not interact with the
+// wrapped object directly.
 func NewBackendStream(rw io.ReadWriteCloser) *MessageStream {
 	return baseNewMessageStream(rw, ConnNormal)
 }
@@ -74,7 +79,7 @@ func (c *MessageStream) HasNext() bool {
 	return c.msgRemainder.Len() >= MsgHeaderMinSize
 }
 
-func (c *MessageStream) Next(dst *Message) error {
+func (c *MessageStream) Next(dst *Message) (err error) {
 	switch c.state {
 	case ConnStartup:
 		msgSz, err := ReadUint32(c.rw)
@@ -177,9 +182,13 @@ func (c *MessageStream) Send(msg *Message) (err error) {
 }
 
 func (c *MessageStream) Flush() error {
-	if flushable, ok := c.rw.(Flusher); ok {
+	if flushable, ok := c.rw.(util.Flusher); ok {
 		return flushable.Flush()
 	}
 
 	return nil
+}
+
+func (c *MessageStream) Close() error {
+	return c.rw.Close()
 }

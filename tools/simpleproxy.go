@@ -1,170 +1,17 @@
 package main
 
 import (
-	"bufio"
-	"crypto/tls"
 	"github.com/deafbybeheading/femebe"
+	"github.com/deafbybeheading/femebe/dispatch"
 	"github.com/deafbybeheading/femebe/util"
-	"fmt"
+	"github.com/deafbybeheading/femebe/message"
 	"io"
+	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
 )
-
-type session struct {
-	ingress func()
-	egress  func()
-}
-
-func (s *session) start() {
-	go s.ingress()
-	go s.egress()
-}
-
-type ProxyPair struct {
-	*femebe.MessageStream
-	net.Conn
-}
-
-func NewSimpleProxySession(errch chan error,
-	fe *ProxyPair, be *ProxyPair) *session {
-	mover := func(from, to *ProxyPair) func() {
-		return func() {
-			var err error
-
-			defer func() {
-				from.Close()
-				to.Close()
-				errch <- err
-			}()
-
-			var m femebe.Message
-
-			for {
-				err = from.Next(&m)
-				if err != nil {
-					return
-				}
-
-				err = to.Send(&m)
-				if err != nil {
-					return
-				}
-
-				if !from.HasNext() {
-					err = to.Flush()
-					if err != nil {
-						return
-					}
-				}
-			}
-		}
-	}
-
-	return &session{
-		ingress: mover(fe, be),
-		egress:  mover(be, fe),
-	}
-}
-
-type bufWriteCon struct {
-	io.ReadCloser
-	femebe.Flusher
-	io.Writer
-}
-
-func newBufWriteCon(c net.Conn) *bufWriteCon {
-	bw := bufio.NewWriter(c)
-	return &bufWriteCon{c, bw, bw}
-}
-
-
-// so...
-/*
-func handle(conn net.Conn) {
-	feStream := NewFEStream(conn)
-	var m Message
-	err := feStream.Next(m)
-	if err != nil {
-		// ...
-	}
-	if message.IsStartup(m) {
-		startup, err := message.ReadStartup(&m)
-		if err != nil {
-			// ... 
-		}
-		connector, err := resolver.Resolve(m.Version, m.Options)
-		if err != nil {
-			// ...
-		}
-		beStream, err := connector.Startup()
-		if err != nil {
-			// ...
-		}
-
-		router := femebe.NewSimpleRouter(feStream, beStream)
-		session := femebe.NewSimpleSession(router, connector)
-
-		go manager.RunSession(session)
-
-	} else if message.IsCancel(m) {
-		cancel, err := message.ReadCancel(&m)
-		if err != nil {
-			// ... 
-		}
-		go manager.Cancel(cancel.BackendPid, cancel.SecretKey)
-	} else {
-		// unknown message type: we can't do anything with this
-		_ = conn.Close()
-	}
-}
-*/
-
-// Generic connection handler
-//
-// This redelegates to more specific proxy handlers that contain the
-// main proxy loop logic.
-func handleConnection(feConn net.Conn, serverAddr string) {
-	var err error
-
-	// Log disconnections
-	defer func() {
-		if err != nil && err != io.EOF {
-			fmt.Printf("Session exits with error: %v\n", err)
-		} else {
-			fmt.Printf("Session exits cleanly\n")
-		}
-	}()
-
-	defer feConn.Close()
-
-	c := femebe.NewFrontendStream(newBufWriteCon(feConn))
-
-	unencryptedBeConn, err := util.AutoDial(serverAddr)
-	if err != nil {
-		fmt.Printf("Could not connect to server: %v\n", err)
-	}
-
-	conf := &util.SSLConfig{Mode: util.SSLPrefer, Config: tls.Config{InsecureSkipVerify: true}}
-	beConn, err := util.NegotiateTLS(unencryptedBeConn, conf)
-	if err != nil {
-		fmt.Printf("Could not negotiate TLS: %v\n", err)
-	}
-
-	s := femebe.NewBackendStream(newBufWriteCon(beConn))
-	if err != nil {
-		fmt.Printf("Could not initialize connection to server: %v\n", err)
-	}
-
-	done := make(chan error)
-	NewSimpleProxySession(done, &ProxyPair{c, feConn},
-		&ProxyPair{s, beConn}).start()
-
-	// Both sides must exit to finish
-	_ = <-done
-	_ = <-done
-}
 
 // Startup and main client acceptance loop
 func main() {
@@ -198,6 +45,11 @@ func main() {
 	}
 	go watchSigs()
 
+	target := os.Args[2]
+	resolver := &fixedResolver{target}
+	manager := dispatch.NewSimpleSessionManager()
+	p := &proxy{resolver, manager}
+
 	for {
 		conn, err := ln.Accept()
 
@@ -206,9 +58,84 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn, os.Args[2])
+		log.Print("accepting connection")
+
+		go p.handleConnection(conn, target)
 	}
 
 	fmt.Println("simpleproxy quits successfully")
 	return
+}
+
+
+type proxy struct {
+	resolver dispatch.Resolver
+	manager dispatch.SessionManager
+}
+
+type fixedResolver struct {
+	targetAddr string
+}
+
+func (pr *fixedResolver) Resolve(params map[string]string) dispatch.Connector {
+	return dispatch.NewSimpleConnector(pr.targetAddr, params)
+}
+
+func (p *proxy) handleConnection(conn net.Conn, serverAddr string) {
+	var err error
+	defer func() {
+		if p := recover(); p != nil {
+			fmt.Printf("error in handling connection: %v", p)
+			conn.Close()
+		} else {
+			// Log disconnections: right now, we still return EOF
+			// errors for connections that are closed "cleanly"
+			// (e.g., client disconnects or server crashes) rather
+			// than due to any problems encountered during
+			// protocol manipulation. We assume that any
+			// connectivity errors are "clean" and we ignore them
+			// for now.
+			if err != nil && err != io.EOF {
+				log.Print("Session exits with error: ", err)
+			} else {
+				log.Print("Session exits cleanly")
+			}
+		}
+	}()
+
+	feStream := femebe.NewFrontendStream(util.NewBufferedReadWriteCloser(conn))
+	var m femebe.Message
+	err = feStream.Next(&m)
+	if err != nil {
+		panic(fmt.Errorf("could not read client startup message: %v", err))
+	}
+	if message.IsStartupMessage(&m) {
+		startup, err := message.ReadStartupMessage(&m)
+		if err != nil {
+			panic(fmt.Errorf("could not parse client startup message: %v", err))
+		}
+		connector := p.resolver.Resolve(startup.Params)
+		beStream, err := connector.Startup()
+		if err != nil {
+			panic(fmt.Errorf("could not connect to backend: %v", err))
+		}
+		router := dispatch.NewSimpleRouter(feStream, beStream)
+		session := dispatch.NewSimpleSession(router, connector)
+		err = p.manager.RunSession(session)
+	} else if message.IsCancelRequest(&m) {
+		cancel, err := message.ReadCancelRequest(&m)
+		if err != nil {
+			panic(fmt.Errorf("could not parse cancel message: %v", err))
+		}
+		err = p.manager.Cancel(cancel.BackendPid, cancel.SecretKey)
+		if err != nil {
+			panic(fmt.Errorf("could not process cancellation: %v", err))
+		}
+		err = conn.Close()
+		if err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		panic(fmt.Errorf("could not understand client"))
+	}
 }

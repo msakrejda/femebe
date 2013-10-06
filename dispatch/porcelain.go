@@ -17,15 +17,15 @@ type Scaffolding struct {
 
 type SessionManager interface {
 	RunSession(session Session) error
-	Cancel(backendPid, secretKey int32) error
+	Cancel(backendPid, secretKey uint32) error
 }
 
 type BackendKeyHolder interface {
 	// Identifies this session, as per the FEBE protocol.
 	// If this information is not yet available when this
 	// method is called, or the router does not support
-	// cancellation, it should return (-1, -1).
-	BackendKeyData() (int32, int32)
+	// cancellation, it should return (0, 0).
+	BackendKeyData() (uint32, uint32)
 }
 
 // A Router moves protocol messages from the frontend to the backend
@@ -52,7 +52,7 @@ type Resolver interface {
 type Canceller interface {
 	// Open a stream to a backend and send a cancellation
 	// request with the given data, the close the stream.
-	Cancel(backendPid, secretKey int32) error
+	Cancel(backendPid, secretKey uint32) error
 }
 
 type Connector interface {
@@ -81,6 +81,10 @@ type simpleSessionManager struct {
 	sessionLock sync.Mutex
 }
 
+func NewSimpleSessionManager() SessionManager {
+	return &simpleSessionManager{}
+}
+
 func (s *simpleSessionManager) RunSession(session Session) error {
 	s.sessionLock.Lock()
 	s.sessions = append(s.sessions, session)
@@ -103,41 +107,38 @@ func (s *simpleSessionManager) RunSession(session Session) error {
 	return err
 }
 
-func (s *simpleSessionManager) Cancel(backendPid, secretKey int32) error {
+func (s *simpleSessionManager) Cancel(backendPid, secretKey uint32) error {
 	for _, session := range s.sessions {
 		// TODO: we could cache this info once available, but
 		// for a reasonably small number of sessions, there's
 		// probably no point
 		if p, k := session.BackendKeyData(); p == backendPid && k == secretKey  {
 			s.sessionLock.Lock()
-			defer s.sessionLock.Lock()
+			defer s.sessionLock.Unlock()
 			return session.Cancel(backendPid, secretKey)
 		}
 	}
 	return errors.New("not found")
 }
 
-type SimpleConnector struct {
+type simpleConnector struct {
 	backendAddr string
-	startupMessage femebe.Message
-	cancelMessage femebe.Message
+	opts map[string]string
 }
 
 // Make a connector that always prefers TLS and connects using the
 // options specified here.
 func NewSimpleConnector(target string, options map[string]string) Connector {
-	c := &SimpleConnector{backendAddr: target}
-	message.InitStartupMessage(&c.startupMessage, options)
-	return c
+	return &simpleConnector{backendAddr: target, opts: options}
 }
 
-func (c *SimpleConnector) dial() (femebe.Stream, error) {
+func (c *simpleConnector) dial() (femebe.Stream, error) {
 	bareConn, err := util.AutoDial(c.backendAddr)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to %v: %v", c.backendAddr, err)
 	}
 
-	// the SimpleConnector always prefers TLS
+	// the simpleConnector always prefers TLS
 	beConn, err := util.NegotiateTLS(bareConn, &util.SSLConfig{
 		Mode: util.SSLPrefer,
 		Config: tls.Config{InsecureSkipVerify: true},
@@ -149,62 +150,66 @@ func (c *SimpleConnector) dial() (femebe.Stream, error) {
 	return femebe.NewBackendStream(beConn), nil
 }
 
-func (c *SimpleConnector) Startup() (femebe.Stream, error) {
+func (c *simpleConnector) Startup() (femebe.Stream, error) {
 	beStream, err := c.dial()
 	if err != nil {
 		return nil, err
 	}
-	err = beStream.Send(&c.startupMessage)
+	var startup femebe.Message
+	message.InitStartupMessage(&startup, c.opts)
+	err = beStream.Send(&startup)
 	if err != nil {
 		return nil, err
 	}
 	return beStream, nil
 }
 
-func (c *SimpleConnector) Cancel(backendPid, secretKey int32) error {
+func (c *simpleConnector) Cancel(backendPid, secretKey uint32) error {
 	beStream, err := c.dial()
+	defer beStream.Close()
 	if err != nil {
 		return err
 	}
-	message.InitCancelRequest(&c.cancelMessage, backendPid, secretKey)
-	return beStream.Send(&c.cancelMessage)
+	var cancel femebe.Message
+	message.InitCancelRequest(&cancel, backendPid, secretKey)
+	return beStream.Send(&cancel)
 }
 
 type simpleRouter struct {
-	backendPid int32
-	backendKeyData int32
-	from femebe.Stream
-	to femebe.Stream
+	backendPid uint32
+	secretKey uint32
+	fe femebe.Stream
+	be femebe.Stream
 	feBuf femebe.Message
 	beBuf femebe.Message
 }
 
-func NewSimpleRouter(from, to femebe.Stream) Router {
+func NewSimpleRouter(fe, be femebe.Stream) Router {
 	return &simpleRouter{
-		backendPid: -1,
-		backendKeyData: -1,
-		from: from,
-		to: to,
+		backendPid: 0,
+		secretKey: 0,
+		fe: fe,
+		be: be,
 	}
 }
 
-func (s *simpleRouter) BackendKeyData() (int32, int32) {
-	return s.backendPid, s.backendKeyData
+func (s *simpleRouter) BackendKeyData() (uint32, uint32) {
+	return s.backendPid, s.secretKey
 }
 
 // route the next message from frontend to backend,
 // blocking and flushing if necessary
 func (s *simpleRouter) RouteFrontend() (err error) {
-	err = s.from.Next(&s.feBuf)
+	err = s.fe.Next(&s.feBuf)
 	if err != nil {
 		return
 	}
-	err = s.to.Send(&s.feBuf)
+	err = s.be.Send(&s.feBuf)
 	if err != nil {
 		return
 	}
-	if !s.from.HasNext() {
-		return s.to.Flush()
+	if !s.fe.HasNext() {
+		return s.be.Flush()
 	}
 	return
 }
@@ -212,7 +217,7 @@ func (s *simpleRouter) RouteFrontend() (err error) {
 // route the next message from backend to frotnend,
 // blocking and flushing if necessary
 func (s *simpleRouter) RouteBackend() error {
-	err := s.from.Next(&s.beBuf)
+	err := s.be.Next(&s.beBuf)
 	if err != nil {
 		return err
 	}
@@ -221,12 +226,12 @@ func (s *simpleRouter) RouteBackend() error {
 		if err != nil {
 			return err
 		}
-		s.backendPid = beInfo.Pid
-		s.backendKeyData = beInfo.Key
+		s.backendPid = beInfo.BackendPid
+		s.secretKey = beInfo.SecretKey
 	}
-	err = s.to.Send(&s.beBuf)
-	if !s.from.HasNext() {
-		return s.to.Flush()
+	err = s.fe.Send(&s.beBuf)
+	if !s.be.HasNext() {
+		return s.fe.Flush()
 	}
 	return nil
 }
@@ -254,7 +259,7 @@ func (s *simpleSession) Run() (err error) {
 	return
 }
 
-func (s *simpleSession) BackendKeyData()  (int32, int32) {
+func (s *simpleSession) BackendKeyData()  (uint32, uint32) {
 	return s.router.BackendKeyData()
 }
 

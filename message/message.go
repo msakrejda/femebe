@@ -27,10 +27,137 @@ func InitStartupMessage(m *Message, params map[string]string) {
 	m.InitFromBytes(MsgTypeFirst, buf.Bytes())
 }
 
-func InitCancelRequest(m *Message, backendPid, secretKey int32) {
-	buf := bytes.NewBuffer(make([]byte, 0, 8))
-	WriteInt32(buf, backendPid)
-	WriteInt32(buf, secretKey)
+func IsStartupMessage(m *Message) bool {
+	if m.MsgType() != MsgTypeFirst {
+		return false
+	}
+	// TODO: don't Force without checking size to avoid choking on
+	// oversize client messages (see proper check in readFirst)
+	result, err := m.Force()
+	if err != nil {
+		return false
+	}
+	return bytes.HasPrefix(result, []byte{0x00, 0x03, 0x00, 0x00})
+}
+
+type StartupMessage struct {
+	Params map[string]string
+}
+
+// Read the first message from a client: either a StartupMessage or a CancelRequest
+func readFirst(m *Message) ([]byte, error) {
+	if remainingSz := m.Size() - 4; remainingSz > 10000 {
+		// Startup packets longer than this are considered
+		// invalid.  Copied from the PostgreSQL source code.
+		err := e.TooBig(
+			"Rejecting oversized startup packet: got %v",
+			m.Size())
+		return nil, err
+	} else if remainingSz < 4 {
+		// We expect all initialization messages to
+		// have at least a 4-byte header
+		err := e.WrongSize(
+			"Expected message of at least 4 bytes; got %v",
+			remainingSz)
+		return nil, err
+	}
+	return m.Force()
+}
+
+func ReadStartupMessage(m *Message) (*StartupMessage, error) {
+	var err error
+	body, err := readFirst(m)
+	if err != nil {
+		return nil, err
+	}
+
+	var b Reader
+	b.InitReader(body)
+	protoVer, _ := ReadInt32(&b)
+
+	const SupportedProtover = 0x00030000
+	if protoVer != SupportedProtover {
+		return nil, e.StartupVersion(
+			"bad version: got %x expected %x",
+			protoVer, SupportedProtover,
+		)
+	}
+
+	params := make(map[string]string)
+	for remaining := b.Len(); remaining > 1; {
+		key, err := ReadCString(&b)
+		if err != nil {
+			return nil, err
+		}
+
+		val, err := ReadCString(&b)
+		if err != nil {
+			return nil, err
+		}
+
+		remaining -= len(key) + len(val) + 2 /* null bytes */
+		params[key] = val
+	}
+
+	// Fidelity check on the startup packet, whereby the last byte
+	// must be a NUL.
+	if d, _ := ReadByte(&b); d != '\000' {
+		return nil, e.StartupFmt("malformed startup packet")
+	}
+
+	return &StartupMessage{params}, nil
+}
+
+type CancelRequest struct {
+	BackendPid uint32
+	SecretKey uint32
+}
+
+func ReadCancelRequest(m *Message) (*CancelRequest, error) {
+	var err error
+	body, err := readFirst(m)
+	if size := m.Size() - 4; size != 12 {
+		return nil, e.WrongSize(
+			"expected CancelRequest to be 12 bytes; got %v",
+			size,
+		)
+	}
+	var b Reader
+	b.InitReader(body)
+	if code, _ := ReadUint32(&b); code != 80877102 {
+		return nil, fmt.Errorf(
+			"expected cancel message code 80877102; got %v",
+			code,
+		)
+	}
+	bePid, err := ReadUint32(&b)
+	if err != nil {
+		return nil, err
+	}
+	secret, err := ReadUint32(&b)
+	if err != nil {
+		return nil, err
+	}
+	return &CancelRequest{BackendPid: bePid, SecretKey: secret}, nil
+}
+
+func IsCancelRequest(m *Message) bool {
+	if m.MsgType() != MsgTypeFirst {
+		return false
+	}
+	result, err := m.Force()
+	if err != nil {
+		return false
+	}
+	return bytes.HasPrefix(result, []byte{0x04, 0xd2, 0x16, 0x2e})
+}
+
+func InitCancelRequest(m *Message, backendPid, secretKey uint32) {
+	buf := bytes.NewBuffer(make([]byte, 0, 12))
+	// Special CancelRequest message "type"
+	WriteUint32(buf, 80877102)
+	WriteUint32(buf, backendPid)
+	WriteUint32(buf, secretKey)
 	m.InitFromBytes(MsgTypeFirst, buf.Bytes())	
 }
 
@@ -291,8 +418,8 @@ func InitAuthenticationOk(m *Message) {
 }
 
 type BackendKeyData struct {
-	Pid int32
-	Key int32
+	BackendPid uint32
+	SecretKey uint32
 }
 
 func IsBackendKeyData(msg *Message) bool {
@@ -311,17 +438,17 @@ func ReadBackendKeyData(msg *Message) (*BackendKeyData, error) {
 	}
 
 	r := msg.Payload()
-	pid, err := ReadInt32(r)
+	pid, err := ReadUint32(r)
 	if err != nil {
 		return nil, err
 	}
 
-	key, err := ReadInt32(r)
+	key, err := ReadUint32(r)
 	if err != nil {
 		return nil, err
 	}
 
-	return &BackendKeyData{Pid: pid, Key: key}, err
+	return &BackendKeyData{BackendPid: pid, SecretKey: key}, err
 }
 
 // Logical names of various ErrorResponse and NoticeResponse keys,

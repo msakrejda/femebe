@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bufio"
 	"crypto/tls"
 	"errors"
 	"io"
@@ -31,6 +32,22 @@ func AutoDial(location string) (net.Conn, error) {
 		return net.Dial("unix", location)
 	}
 	return net.Dial("tcp", location)
+}
+
+// Flush buffers, returning any error encountered
+type Flusher interface {
+	Flush() error
+}
+
+type bufWriteConn struct {
+	io.ReadCloser
+	Flusher
+	io.Writer
+}
+
+func NewBufferedReadWriteCloser(rwc io.ReadWriteCloser) io.ReadWriteCloser {
+	bw := bufio.NewWriter(rwc)
+	return &bufWriteConn{rwc, bw, bw}
 }
 
 type SSLMode string
