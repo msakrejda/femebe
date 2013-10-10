@@ -1,8 +1,0 @@
-#!/bin/bash
-
-proxy_port=8432
-PGB_CMD="env PGPORT=$proxy_port PGHOST=localhost PGSSLMODE=disable /usr/lib/postgresql/9.1/bin/pgbench -s 50 -i"
-PROXY_BUILD="go build tools/simpleproxy.go"
-PROXY_CMD="simpleproxy"
-PROXY_ARGS="localhost:$proxy_port localhost:5432"
-ITERATIONS=5
