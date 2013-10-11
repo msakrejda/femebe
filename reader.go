@@ -1,11 +1,10 @@
 // The same as the standard Reader, except allowing for no-allocation
 // re-initialization, access to the underlying byte slice, and removal
-// of all rune manipulation.  These alterations bear the following
-// copyright:
+// of all rune manipulation.  These alterations bear the copyright
+// listed in the accompanying LICENSE file.
 //
-// Copyright 2012 Heroku. All rights reserved.
-//
-// Otherwise, the copyright is:
+// Otherwise, the original copyright (referring to the original Go
+// LICENSE file) is:
 //
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
