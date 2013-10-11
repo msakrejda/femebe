@@ -6,15 +6,15 @@ import (
 )
 
 func TestErrToChannel(t *testing.T) {
-	expectErr := func(errCh <- chan error) {
+	expectErr := func(errCh <-chan error) {
 		select {
-		case <- errCh:
+		case <-errCh:
 			// do nothing
 		default:
 			t.Errorf("no error available on channel; want error")
 		}
 	}
-	errAfter := func(n int) (func() error) {
+	errAfter := func(n int) func() error {
 		return func() error {
 			n--
 			if n == 0 {
@@ -32,7 +32,7 @@ func TestErrToChannel(t *testing.T) {
 	ErrToChannel(errAfter(5), errCh)
 	expectErr(errCh)
 	select {
-	case err := <- errCh:
+	case err := <-errCh:
 		t.Errorf("got error %v; want nil", err)
 	default:
 		// do nothing

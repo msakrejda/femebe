@@ -1,11 +1,10 @@
-package message
+package proto
 
 import (
 	"bytes"
-	. "github.com/deafbybeheading/femebe"
-	. "github.com/deafbybeheading/femebe/pgproto"
-	e "github.com/deafbybeheading/femebe/error"
 	"fmt"
+	. "github.com/deafbybeheading/femebe"
+	e "github.com/deafbybeheading/femebe/error"
 	"io"
 	"regexp"
 	"strconv"
@@ -110,7 +109,7 @@ func ReadStartupMessage(m *Message) (*StartupMessage, error) {
 
 type CancelRequest struct {
 	BackendPid uint32
-	SecretKey uint32
+	SecretKey  uint32
 }
 
 func ReadCancelRequest(m *Message) (*CancelRequest, error) {
@@ -158,13 +157,12 @@ func InitCancelRequest(m *Message, backendPid, secretKey uint32) {
 	WriteUint32(buf, 80877102)
 	WriteUint32(buf, backendPid)
 	WriteUint32(buf, secretKey)
-	m.InitFromBytes(MsgTypeFirst, buf.Bytes())	
+	m.InitFromBytes(MsgTypeFirst, buf.Bytes())
 }
 
 func InitReadyForQuery(m *Message, connState ConnStatus) {
 	m.InitFromBytes(MsgReadyForQueryZ, []byte{byte(connState)})
 }
-
 
 func NewField(name string, typOid Oid) *FieldDescription {
 	typSize := TypSize(typOid)
@@ -328,7 +326,7 @@ func ReadDataRow(m *Message) (*DataRow, error) {
 			values[i] = nil
 		} else {
 			return nil, e.WrongSize("Invalid length %v for field %v",
-					fieldLen, i)
+				fieldLen, i)
 		}
 	}
 	return &DataRow{values}, nil
@@ -419,7 +417,7 @@ func InitAuthenticationOk(m *Message) {
 
 type BackendKeyData struct {
 	BackendPid uint32
-	SecretKey uint32
+	SecretKey  uint32
 }
 
 func IsBackendKeyData(msg *Message) bool {
@@ -541,7 +539,6 @@ const (
 	RfqInTrans            = 'T'
 	RfqError              = 'E'
 )
-
 
 // FEBE Message type constants shamelessly stolen from the pq library.
 //

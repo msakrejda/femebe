@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/deafbybeheading/femebe"
-	"github.com/deafbybeheading/femebe/message"
+	"github.com/deafbybeheading/femebe/proto"
 	"github.com/deafbybeheading/femebe/util"
 	"net"
 	"sync"
@@ -84,7 +84,7 @@ type Session interface {
 }
 
 type simpleSessionManager struct {
-	sessions []Session
+	sessions    []Session
 	sessionLock sync.Mutex
 }
 
@@ -121,7 +121,7 @@ func (s *simpleSessionManager) Cancel(backendPid, secretKey uint32) error {
 		// TODO: we could cache this info once available, but
 		// for a reasonably small number of sessions, there's
 		// probably no point
-		if p, k := session.BackendKeyData(); p == backendPid && k == secretKey  {
+		if p, k := session.BackendKeyData(); p == backendPid && k == secretKey {
 			s.sessionLock.Lock()
 			defer s.sessionLock.Unlock()
 			return session.Cancel(backendPid, secretKey)
@@ -132,7 +132,7 @@ func (s *simpleSessionManager) Cancel(backendPid, secretKey uint32) error {
 
 type simpleConnector struct {
 	backendAddr string
-	opts map[string]string
+	opts        map[string]string
 }
 
 // Make a Connector that always prefers TLS and connects using the
@@ -149,7 +149,7 @@ func (c *simpleConnector) dial() (femebe.Stream, error) {
 
 	// the simpleConnector always prefers TLS
 	beConn, err := util.NegotiateTLS(bareConn, &util.SSLConfig{
-		Mode: util.SSLPrefer,
+		Mode:   util.SSLPrefer,
 		Config: tls.Config{InsecureSkipVerify: true},
 	})
 	if err != nil {
@@ -165,7 +165,7 @@ func (c *simpleConnector) Startup() (femebe.Stream, error) {
 		return nil, err
 	}
 	var startup femebe.Message
-	message.InitStartupMessage(&startup, c.opts)
+	proto.InitStartupMessage(&startup, c.opts)
 	err = beStream.Send(&startup)
 	if err != nil {
 		return nil, err
@@ -180,17 +180,17 @@ func (c *simpleConnector) Cancel(backendPid, secretKey uint32) error {
 		return err
 	}
 	var cancel femebe.Message
-	message.InitCancelRequest(&cancel, backendPid, secretKey)
+	proto.InitCancelRequest(&cancel, backendPid, secretKey)
 	return beStream.Send(&cancel)
 }
 
 type simpleRouter struct {
 	backendPid uint32
-	secretKey uint32
-	fe femebe.Stream
-	be femebe.Stream
-	feBuf femebe.Message
-	beBuf femebe.Message
+	secretKey  uint32
+	fe         femebe.Stream
+	be         femebe.Stream
+	feBuf      femebe.Message
+	beBuf      femebe.Message
 }
 
 // Make a new Router that captures cancellation data and ferries
@@ -200,9 +200,9 @@ type simpleRouter struct {
 func NewSimpleRouter(fe, be femebe.Stream) Router {
 	return &simpleRouter{
 		backendPid: 0,
-		secretKey: 0,
-		fe: fe,
-		be: be,
+		secretKey:  0,
+		fe:         fe,
+		be:         be,
 	}
 }
 
@@ -234,8 +234,8 @@ func (s *simpleRouter) RouteBackend() error {
 	if err != nil {
 		return err
 	}
-	if message.IsBackendKeyData(&s.beBuf) {
-		beInfo, err := message.ReadBackendKeyData(&s.beBuf)
+	if proto.IsBackendKeyData(&s.beBuf) {
+		beInfo, err := proto.ReadBackendKeyData(&s.beBuf)
 		if err != nil {
 			return err
 		}
@@ -266,15 +266,14 @@ func (s *simpleSession) Run() (err error) {
 	routeBackend := func() { util.ErrToChannel(s.router.RouteBackend, errs) }
 	go routeFrontend()
 	go routeBackend()
-	err = <- errs
+	err = <-errs
 	// N.B.: we ignore the second error entirely, but we do wait
 	// for it to ensure the session is fully cleaned up before we
 	// exit
-	_ = <- errs 
+	_ = <-errs
 	return
 }
 
-func (s *simpleSession) BackendKeyData()  (uint32, uint32) {
+func (s *simpleSession) BackendKeyData() (uint32, uint32) {
 	return s.router.BackendKeyData()
 }
-

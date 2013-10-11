@@ -1,4 +1,4 @@
-package message
+package proto
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	e "github.com/deafbybeheading/femebe/error"
 	"testing"
 )
-
 
 // A helper that initializes a message, writes it into and then then
 // reads it back out of femebe.
@@ -90,7 +89,6 @@ func TestStartupSerDes(t *testing.T) {
 		t.Fatal()
 	}
 }
-
 
 func TestBackendKeyReading(t *testing.T) {
 	buf := bytes.Buffer{}

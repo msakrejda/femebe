@@ -1,4 +1,4 @@
-package pgproto
+package proto
 
 // TypSize returns the size in bytes of the Postgres type specified by
 // typOid, where undertood by femebe. For variable-length types or if

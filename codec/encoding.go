@@ -3,17 +3,16 @@ package codec
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/deafbybeheading/femebe"
-	"github.com/deafbybeheading/femebe/message"
-	"github.com/deafbybeheading/femebe/pgproto"
 	"fmt"
+	"github.com/deafbybeheading/femebe"
+	"github.com/deafbybeheading/femebe/proto"
 	"log"
 	"strconv"
 	"time"
 )
 
-func EncodeValue(buff *bytes.Buffer, val interface{}, format message.EncFmt) (err error) {
-	if format == message.EncFmtTxt {
+func EncodeValue(buff *bytes.Buffer, val interface{}, format proto.EncFmt) (err error) {
+	if format == proto.EncFmtTxt {
 		switch val.(type) {
 		case int16:
 			TextEncodeInt16(buff, val.(int16))

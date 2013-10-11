@@ -1,12 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"github.com/deafbybeheading/femebe"
 	"github.com/deafbybeheading/femebe/dispatch"
+	"github.com/deafbybeheading/femebe/proto"
 	"github.com/deafbybeheading/femebe/util"
-	"github.com/deafbybeheading/femebe/message"
 	"io"
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -67,10 +67,9 @@ func main() {
 	return
 }
 
-
 type proxy struct {
 	resolver dispatch.Resolver
-	manager dispatch.SessionManager
+	manager  dispatch.SessionManager
 }
 
 type fixedResolver struct {
@@ -109,8 +108,8 @@ func (p *proxy) handleConnection(conn net.Conn, serverAddr string) {
 	if err != nil {
 		panic(fmt.Errorf("could not read client startup message: %v", err))
 	}
-	if message.IsStartupMessage(&m) {
-		startup, err := message.ReadStartupMessage(&m)
+	if proto.IsStartupMessage(&m) {
+		startup, err := proto.ReadStartupMessage(&m)
 		if err != nil {
 			panic(fmt.Errorf("could not parse client startup message: %v", err))
 		}
@@ -122,8 +121,8 @@ func (p *proxy) handleConnection(conn net.Conn, serverAddr string) {
 		router := dispatch.NewSimpleRouter(feStream, beStream)
 		session := dispatch.NewSimpleSession(router, connector)
 		err = p.manager.RunSession(session)
-	} else if message.IsCancelRequest(&m) {
-		cancel, err := message.ReadCancelRequest(&m)
+	} else if proto.IsCancelRequest(&m) {
+		cancel, err := proto.ReadCancelRequest(&m)
 		if err != nil {
 			panic(fmt.Errorf("could not parse cancel message: %v", err))
 		}

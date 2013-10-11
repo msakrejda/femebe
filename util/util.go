@@ -8,11 +8,13 @@ import (
 	"net"
 	"strings"
 )
+
 // Call fn repeatedly until an error is returned; then send the error
 // on the given channel and return
-func ErrToChannel(fn func() error, ch chan <- error) {
+func ErrToChannel(fn func() error, ch chan<- error) {
 	var err error
-	for err = fn(); err == nil; err = fn() {}
+	for err = fn(); err == nil; err = fn() {
+	}
 	ch <- err
 }
 
@@ -60,7 +62,7 @@ const (
 )
 
 type SSLConfig struct {
-	Mode SSLMode
+	Mode   SSLMode
 	Config tls.Config
 }
 
