@@ -41,6 +41,7 @@ FEMEBE can use help in a number of areas:
  * Automated testing setup (e.g., via Travis CI)
  * Performance benchmarks and improvements
  * API improvements so we can confidently freeze the interface
+ * Add server TLS support (TLS for the client piece exists)
  * Support parsing and formatting remaining message types
  * Utility functions for data type management
  * Documentation (especially sample code)
