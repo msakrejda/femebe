@@ -3,7 +3,8 @@ package proto
 import (
 	"bytes"
 	"fmt"
-	. "github.com/deafbybeheading/femebe"
+	. "github.com/deafbybeheading/femebe/buf"
+	. "github.com/deafbybeheading/femebe/core"
 	e "github.com/deafbybeheading/femebe/error"
 	"io"
 	"regexp"

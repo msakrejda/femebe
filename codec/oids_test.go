@@ -1,12 +1,12 @@
 package codec
 
 import (
-	"github.com/deafbybeheading/femebe/pgproto"
+	"github.com/deafbybeheading/femebe/proto"
 	"testing"
 )
 
 func TestGuessOids(t *testing.T) {
-	verifyOids := func(rows [][]interface{}, expected []pgproto.Oid) {
+	verifyOids := func(rows [][]interface{}, expected []proto.Oid) {
 		result := GuessOids(rows)
 		if len(result) != len(expected) {
 			t.Errorf("Expected %v; got %v", expected, result)
@@ -19,5 +19,5 @@ func TestGuessOids(t *testing.T) {
 			}
 		}
 	}
-	verifyOids([][]interface{}{}, []pgproto.Oid{})
+	verifyOids([][]interface{}{}, []proto.Oid{})
 }

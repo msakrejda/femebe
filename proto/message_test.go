@@ -2,26 +2,30 @@ package proto
 
 import (
 	"bytes"
-	"github.com/deafbybeheading/femebe"
+	"github.com/deafbybeheading/femebe/buf"
+	"github.com/deafbybeheading/femebe/core"
 	e "github.com/deafbybeheading/femebe/error"
+	"io"
 	"testing"
 )
 
 // A helper that initializes a message, writes it into and then then
-// reads it back out of femebe.
+// reads it back out of core.
 func firstMessageRoundTrip(t *testing.T,
-	init func(m *femebe.Message)) (*femebe.Message, error) {
+	init func(m *core.Message)) (*core.Message, error) {
 	// Pretend that a bad startup packet is being serialized
 	// and sent to the server.
-	sms, rwc := femebe.NewTestBackendStream()
-	var m femebe.Message
+	rwc := newInMemRwc()
+	sms := core.NewBackendStream(rwc)
+
+	var m core.Message
 	init(&m)
 	sms.Send(&m)
 
 	// Reuse the buffer that has been filled and pretend to be
 	// serving a client connection isntead, which should result in
 	// an error because the startup message is over-sized.
-	cms := femebe.NewFrontendStream(rwc)
+	cms := core.NewFrontendStream(rwc)
 	if err := cms.Next(&m); err != nil {
 		return nil, err
 	}
@@ -30,8 +34,8 @@ func firstMessageRoundTrip(t *testing.T,
 }
 
 func TestHugeStartup(t *testing.T) {
-	init := func(m *femebe.Message) {
-		m.InitPromise(femebe.MsgTypeFirst, 10005, []byte{},
+	init := func(m *core.Message) {
+		m.InitPromise(core.MsgTypeFirst, 10005, []byte{},
 			&bytes.Buffer{})
 	}
 
@@ -49,8 +53,8 @@ func TestHugeStartup(t *testing.T) {
 }
 
 func TestSmallStartup(t *testing.T) {
-	init := func(m *femebe.Message) {
-		m.InitPromise(femebe.MsgTypeFirst, 7, []byte{},
+	init := func(m *core.Message) {
+		m.InitPromise(core.MsgTypeFirst, 7, []byte{},
 			&bytes.Buffer{})
 	}
 
@@ -68,8 +72,8 @@ func TestSmallStartup(t *testing.T) {
 }
 
 func TestStartupSerDes(t *testing.T) {
-	ms, _ := femebe.NewTestFrontendStream()
-	var m femebe.Message
+	ms := core.NewFrontendStream(newInMemRwc())
+	var m core.Message
 	params := make(map[string]string)
 
 	params["hello"] = "world"
@@ -80,7 +84,7 @@ func TestStartupSerDes(t *testing.T) {
 
 	ms.Send(&m)
 
-	var deserM femebe.Message
+	var deserM core.Message
 	ms.Next(&deserM)
 
 	serBytes, _ := m.Force()
@@ -91,14 +95,14 @@ func TestStartupSerDes(t *testing.T) {
 }
 
 func TestBackendKeyReading(t *testing.T) {
-	buf := bytes.Buffer{}
+	b := bytes.Buffer{}
 	const Pid = 1234
 	const Key = 5768
-	femebe.WriteInt32(&buf, Pid)
-	femebe.WriteInt32(&buf, Key)
+	buf.WriteInt32(&b, Pid)
+	buf.WriteInt32(&b, Key)
 
-	var m femebe.Message
-	m.InitFromBytes(MsgBackendKeyDataK, buf.Bytes())
+	var m core.Message
+	m.InitFromBytes(MsgBackendKeyDataK, b.Bytes())
 
 	kd, err := ReadBackendKeyData(&m)
 	if err != nil {
@@ -112,4 +116,19 @@ func TestBackendKeyReading(t *testing.T) {
 	if kd.SecretKey != Key {
 		t.Fatal()
 	}
+}
+
+// utility types and functions for these tests
+type inMemRwc struct {
+	io.ReadWriter
+	Contents *bytes.Buffer
+}
+
+func newInMemRwc() io.ReadWriteCloser {
+	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	return &inMemRwc{buf, buf}
+}
+
+func (rwc *inMemRwc) Close() error {
+	return nil
 }

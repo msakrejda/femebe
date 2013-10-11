@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/deafbybeheading/femebe"
-	"github.com/deafbybeheading/femebe/dispatch"
+	"github.com/deafbybeheading/femebe/core"
 	"github.com/deafbybeheading/femebe/proto"
 	"github.com/deafbybeheading/femebe/util"
 	"io"
@@ -102,8 +102,8 @@ func (p *proxy) handleConnection(conn net.Conn, serverAddr string) {
 		}
 	}()
 
-	feStream := femebe.NewFrontendStream(util.NewBufferedReadWriteCloser(conn))
-	var m femebe.Message
+	feStream := core.NewFrontendStream(util.NewBufferedReadWriteCloser(conn))
+	var m core.Message
 	err = feStream.Next(&m)
 	if err != nil {
 		panic(fmt.Errorf("could not read client startup message: %v", err))

@@ -1,6 +1,7 @@
-package femebe
+package core
 
 import (
+	"github.com/deafbybeheading/femebe/buf"
 	"testing"
 )
 
@@ -11,7 +12,7 @@ func BenchmarkEchoSend(b *testing.B) {
 	var pong Message
 
 	ping.InitFromBytes('i', make([]byte, 50))
-	buf := NewPackBuffer(2048)
+	buf := buf.NewPackBuffer(2048)
 	ms := NewBackendStream(buf)
 
 	for i := 0; i < b.N; i++ {
@@ -33,7 +34,7 @@ func BenchmarkEchoNext(b *testing.B) {
 	var pong Message
 
 	ping.InitFromBytes('i', make([]byte, 50))
-	buf := NewPackBuffer(204800)
+	buf := buf.NewPackBuffer(204800)
 	ms := NewBackendStream(buf)
 
 	for i := 0; i < b.N; i++ {
@@ -56,7 +57,7 @@ func TestEcho(t *testing.T) {
 	ping.InitFromBytes('i', []byte("ftest"))
 	var pong Message
 
-	buf := NewPackBuffer(1024)
+	buf := buf.NewPackBuffer(1024)
 
 	ms := NewBackendStream(buf)
 	ms.Send(&ping)

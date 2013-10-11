@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"github.com/deafbybeheading/femebe"
+	"github.com/deafbybeheading/femebe/buf"
 	"github.com/deafbybeheading/femebe/proto"
 	"log"
 	"strconv"
@@ -38,8 +38,8 @@ func EncodeValue(buff *bytes.Buffer, val interface{}, format proto.EncFmt) (err 
 }
 
 func BinEncodeInt16(buff *bytes.Buffer, val int16) {
-	femebe.WriteInt32(buff, 2)
-	femebe.WriteInt16(buff, val)
+	buf.WriteInt32(buff, 2)
+	buf.WriteInt16(buff, val)
 }
 
 func TextEncodeInt16(buff *bytes.Buffer, val int16) {
@@ -70,18 +70,18 @@ func TextEncodeBool(buff *bytes.Buffer, val bool) {
 	encodeValText(buff, val, "%t")
 }
 
-func encodeValText(buf *bytes.Buffer,
+func encodeValText(b *bytes.Buffer,
 	val interface{}, format string) {
 	result := fmt.Sprintf(format, val)
-	femebe.WriteInt32(buf, int32(len([]byte(result))))
-	buf.WriteString(result)
+	buf.WriteInt32(b, int32(len([]byte(result))))
+	b.WriteString(result)
 }
 
 // Decode Postgres (text) encoding into a reasonably corresponding Go
 // type (lifted from pq)
-func Decode(s []byte, typ pgproto.Oid) interface{} {
+func Decode(s []byte, typ proto.Oid) interface{} {
 	switch typ {
-	case pgproto.OidBytea:
+	case proto.OidBytea:
 		s = s[2:] // trim off "\\x"
 		d := make([]byte, hex.DecodedLen(len(s)))
 		_, err := hex.Decode(d, s)
@@ -89,27 +89,27 @@ func Decode(s []byte, typ pgproto.Oid) interface{} {
 			log.Fatalf("femebe: %s", err)
 		}
 		return d
-	case pgproto.OidTimestamp:
+	case proto.OidTimestamp:
 		return mustParse("2006-01-02 15:04:05", typ, s)
-	case pgproto.OidTimestamptz:
+	case proto.OidTimestamptz:
 		return mustParse("2006-01-02 15:04:05-07", typ, s)
-	case pgproto.OidTime:
+	case proto.OidTime:
 		return mustParse("15:04:05", typ, s)
-	case pgproto.OidTimetz:
+	case proto.OidTimetz:
 		return mustParse("15:04:05-07", typ, s)
-	case pgproto.OidDate:
+	case proto.OidDate:
 		return mustParse("2006-01-02", typ, s)
-	case pgproto.OidBool:
+	case proto.OidBool:
 		return s[0] == 't'
-	case pgproto.OidInt8, pgproto.OidInt4, pgproto.OidInt2:
+	case proto.OidInt8, proto.OidInt4, proto.OidInt2:
 		i, err := strconv.ParseInt(string(s), 10, 64)
 		if err != nil {
 			log.Fatalf("femebe: %s", err)
 		}
 		return i
-	case pgproto.OidFloat4, pgproto.OidFloat8:
+	case proto.OidFloat4, proto.OidFloat8:
 		var bits int
-		if typ == pgproto.OidFloat4 {
+		if typ == proto.OidFloat4 {
 			bits = 32
 		} else {
 			bits = 64
@@ -124,7 +124,7 @@ func Decode(s []byte, typ pgproto.Oid) interface{} {
 	}
 }
 
-func mustParse(f string, typ pgproto.Oid, s []byte) time.Time {
+func mustParse(f string, typ proto.Oid, s []byte) time.Time {
 	str := string(s)
 
 	// Special case until time.Parse bug is fixed:
@@ -134,7 +134,7 @@ func mustParse(f string, typ pgproto.Oid, s []byte) time.Time {
 	}
 
 	// check for a 30-minute-offset timezone
-	if (typ == pgproto.OidTimestamptz || typ == pgproto.OidTimetz) &&
+	if (typ == proto.OidTimestamptz || typ == proto.OidTimetz) &&
 		str[len(str)-3] == ':' {
 		f += ":00"
 	}
@@ -147,17 +147,17 @@ func mustParse(f string, typ pgproto.Oid, s []byte) time.Time {
 
 // Describe which Go type this Postgres OID will map to in the scheme
 // above
-func DescribeType(typ pgproto.Oid) string {
+func DescribeType(typ proto.Oid) string {
 	switch typ {
-	case pgproto.OidBytea:
+	case proto.OidBytea:
 		return "[]byte"
-	case pgproto.OidTimestamp, pgproto.OidTimestamptz, pgproto.OidTime, pgproto.OidTimetz, pgproto.OidDate:
+	case proto.OidTimestamp, proto.OidTimestamptz, proto.OidTime, proto.OidTimetz, proto.OidDate:
 		return "time.Time"
-	case pgproto.OidBool:
+	case proto.OidBool:
 		return "boolean"
-	case pgproto.OidInt8, pgproto.OidInt4, pgproto.OidInt2:
+	case proto.OidInt8, proto.OidInt4, proto.OidInt2:
 		return "int64"
-	case pgproto.OidFloat4, pgproto.OidFloat8:
+	case proto.OidFloat4, proto.OidFloat8:
 		return "float64"
 	default:
 		return "unknown"

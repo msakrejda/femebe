@@ -1,8 +1,9 @@
-package femebe
+package core
 
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/deafbybeheading/femebe/buf"
 	"io"
 )
 
@@ -15,7 +16,7 @@ type Message struct {
 	msgType byte
 	sz      uint32
 
-	buffered Reader
+	buffered buf.Reader
 	union    io.Reader
 
 	// The rest of the message yet to be read.

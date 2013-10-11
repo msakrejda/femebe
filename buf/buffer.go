@@ -1,4 +1,4 @@
-package femebe
+package buf
 
 import (
 	"bytes"

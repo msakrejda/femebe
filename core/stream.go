@@ -1,7 +1,8 @@
-package femebe
+package core
 
 import (
 	"bytes"
+	"github.com/deafbybeheading/femebe/buf"
 	"github.com/deafbybeheading/femebe/util"
 	"io"
 )
@@ -82,7 +83,7 @@ func (c *MessageStream) HasNext() bool {
 func (c *MessageStream) Next(dst *Message) (err error) {
 	switch c.state {
 	case ConnStartup:
-		msgSz, err := ReadUint32(c.rw)
+		msgSz, err := buf.ReadUint32(c.rw)
 		if err != nil {
 			c.err = err
 			c.state = ConnErr
@@ -99,7 +100,7 @@ func (c *MessageStream) Next(dst *Message) (err error) {
 		// buffer, do so immediately.
 		if c.HasNext() {
 			msgType := c.msgRemainder.Next(1)[0]
-			msgSz := ReadUint32FromBuffer(&c.msgRemainder)
+			msgSz := buf.ReadUint32FromBuffer(&c.msgRemainder)
 
 			remainingSz := msgSz - 4
 

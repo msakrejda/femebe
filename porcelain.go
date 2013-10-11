@@ -1,13 +1,12 @@
-package dispatch
+package femebe
 
 import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/deafbybeheading/femebe"
+	"github.com/deafbybeheading/femebe/core"
 	"github.com/deafbybeheading/femebe/proto"
 	"github.com/deafbybeheading/femebe/util"
-	"net"
 	"sync"
 )
 
@@ -71,7 +70,7 @@ type Connector interface {
 	// returning it. Return an error if a stream cannot be
 	// established or if sending the startup packet returns an
 	// error
-	Startup() (femebe.Stream, error)
+	Startup() (core.Stream, error)
 }
 
 // Session represents a single client-server connection.
@@ -141,7 +140,7 @@ func NewSimpleConnector(target string, options map[string]string) Connector {
 	return &simpleConnector{backendAddr: target, opts: options}
 }
 
-func (c *simpleConnector) dial() (femebe.Stream, error) {
+func (c *simpleConnector) dial() (core.Stream, error) {
 	bareConn, err := util.AutoDial(c.backendAddr)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to %v: %v", c.backendAddr, err)
@@ -156,15 +155,15 @@ func (c *simpleConnector) dial() (femebe.Stream, error) {
 		return nil, fmt.Errorf("could not negotiate TLS: %v", err)
 	}
 
-	return femebe.NewBackendStream(beConn), nil
+	return core.NewBackendStream(beConn), nil
 }
 
-func (c *simpleConnector) Startup() (femebe.Stream, error) {
+func (c *simpleConnector) Startup() (core.Stream, error) {
 	beStream, err := c.dial()
 	if err != nil {
 		return nil, err
 	}
-	var startup femebe.Message
+	var startup core.Message
 	proto.InitStartupMessage(&startup, c.opts)
 	err = beStream.Send(&startup)
 	if err != nil {
@@ -179,7 +178,7 @@ func (c *simpleConnector) Cancel(backendPid, secretKey uint32) error {
 	if err != nil {
 		return err
 	}
-	var cancel femebe.Message
+	var cancel core.Message
 	proto.InitCancelRequest(&cancel, backendPid, secretKey)
 	return beStream.Send(&cancel)
 }
@@ -187,17 +186,17 @@ func (c *simpleConnector) Cancel(backendPid, secretKey uint32) error {
 type simpleRouter struct {
 	backendPid uint32
 	secretKey  uint32
-	fe         femebe.Stream
-	be         femebe.Stream
-	feBuf      femebe.Message
-	beBuf      femebe.Message
+	fe         core.Stream
+	be         core.Stream
+	feBuf      core.Message
+	beBuf      core.Message
 }
 
 // Make a new Router that captures cancellation data and ferries
 // messages back and forth for the two streams. Flush the "to" stream
 // when no more messages are available on the "from" stream, in both
 // directions.
-func NewSimpleRouter(fe, be femebe.Stream) Router {
+func NewSimpleRouter(fe, be core.Stream) Router {
 	return &simpleRouter{
 		backendPid: 0,
 		secretKey:  0,
