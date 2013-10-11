@@ -47,7 +47,7 @@ func main() {
 
 	target := os.Args[2]
 	resolver := &fixedResolver{target}
-	manager := dispatch.NewSimpleSessionManager()
+	manager := femebe.NewSimpleSessionManager()
 	p := &proxy{resolver, manager}
 
 	for {
@@ -68,16 +68,16 @@ func main() {
 }
 
 type proxy struct {
-	resolver dispatch.Resolver
-	manager  dispatch.SessionManager
+	resolver femebe.Resolver
+	manager  femebe.SessionManager
 }
 
 type fixedResolver struct {
 	targetAddr string
 }
 
-func (pr *fixedResolver) Resolve(params map[string]string) dispatch.Connector {
-	return dispatch.NewSimpleConnector(pr.targetAddr, params)
+func (pr *fixedResolver) Resolve(params map[string]string) femebe.Connector {
+	return femebe.NewSimpleConnector(pr.targetAddr, params)
 }
 
 func (p *proxy) handleConnection(conn net.Conn, serverAddr string) {
@@ -118,8 +118,8 @@ func (p *proxy) handleConnection(conn net.Conn, serverAddr string) {
 		if err != nil {
 			panic(fmt.Errorf("could not connect to backend: %v", err))
 		}
-		router := dispatch.NewSimpleRouter(feStream, beStream)
-		session := dispatch.NewSimpleSession(router, connector)
+		router := femebe.NewSimpleRouter(feStream, beStream)
+		session := femebe.NewSimpleSession(router, connector)
 		err = p.manager.RunSession(session)
 	} else if proto.IsCancelRequest(&m) {
 		cancel, err := proto.ReadCancelRequest(&m)
