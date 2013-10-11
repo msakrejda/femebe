@@ -11,15 +11,15 @@ import (
 	"sync"
 )
 
-type Scaffolding struct {
-	HandleConnection(net.Conn)
-}
-
+// SessionManager is responsible for tracking all the currently
+// running sessions and passing on any cancellation requests
 type SessionManager interface {
 	RunSession(session Session) error
 	Cancel(backendPid, secretKey uint32) error
 }
 
+// BackendKeyHolder holds cancellation data for a particular
+// connection
 type BackendKeyHolder interface {
 	// Identifies this session, as per the FEBE protocol.
 	// If this information is not yet available when this
@@ -28,8 +28,9 @@ type BackendKeyHolder interface {
 	BackendKeyData() (uint32, uint32)
 }
 
-// A Router moves protocol messages from the frontend to the backend
-// (and vice versa). It is also responsible 
+// Router moves protocol messages from the frontend to the backend
+// (and vice versa). It is also responsible for exposing cancellation
+// key data.
 type Router interface {
 	BackendKeyHolder
 	// Route the next message from the frontend
@@ -38,16 +39,20 @@ type Router interface {
 	RouteBackend() error
 }
 
+// Resolver resolves the given startup message parameters into a
+// Connector to a given backend.
 type Resolver interface {
 	// Resolve a given startup message into a Connector that can be
 	// used to connect to or send cancellations to the given backend
 	Resolve(params map[string]string) Connector
 }
 
-// Can send (or delegate) a Postgres CancelRequest message. Should
-// return an error if it knows that the request will not succeed. Note
-// that due to the nature of the cancellation mechanism, there is no
-// guarantee of success, so the absence of an error does not
+// Canceller can send a Postgres CancelRequest message to the backend
+// (or delegate it). Should return an error if it knows that the
+// request will not succeed.
+//
+// Note that due to the nature of the cancellation mechanism, there is
+// no guarantee of success, so the absence of an error does not
 // necessarily mean success.
 type Canceller interface {
 	// Open a stream to a backend and send a cancellation
@@ -55,6 +60,10 @@ type Canceller interface {
 	Cancel(backendPid, secretKey uint32) error
 }
 
+// Connector knows how to reach a single backend for the purpose of
+// resolving a connection. Typically this is only used for starting a
+// fresh connection, but every query cancellation also uses this
+// mechanism.
 type Connector interface {
 	Canceller
 	// Open a stream to a backend, go through TLS negotiation (if
@@ -65,15 +74,13 @@ type Connector interface {
 	Startup() (femebe.Stream, error)
 }
 
+// Session represents a single client-server connection.
 type Session interface {
 	BackendKeyHolder
 	Canceller
+	// Run the session until completion, relaying frontend and
+	// backend messages, and return the error, if any.
 	Run() error
-}
-
-type SessionError struct {
-	error
-	Session Session
 }
 
 type simpleSessionManager struct {
@@ -81,6 +88,8 @@ type simpleSessionManager struct {
 	sessionLock sync.Mutex
 }
 
+// Return the default SessionManager, with bookkeeping for
+// cancellation.
 func NewSimpleSessionManager() SessionManager {
 	return &simpleSessionManager{}
 }
@@ -126,7 +135,7 @@ type simpleConnector struct {
 	opts map[string]string
 }
 
-// Make a connector that always prefers TLS and connects using the
+// Make a Connector that always prefers TLS and connects using the
 // options specified here.
 func NewSimpleConnector(target string, options map[string]string) Connector {
 	return &simpleConnector{backendAddr: target, opts: options}
@@ -184,6 +193,10 @@ type simpleRouter struct {
 	beBuf femebe.Message
 }
 
+// Make a new Router that captures cancellation data and ferries
+// messages back and forth for the two streams. Flush the "to" stream
+// when no more messages are available on the "from" stream, in both
+// directions.
 func NewSimpleRouter(fe, be femebe.Stream) Router {
 	return &simpleRouter{
 		backendPid: 0,
@@ -197,9 +210,9 @@ func (s *simpleRouter) BackendKeyData() (uint32, uint32) {
 	return s.backendPid, s.secretKey
 }
 
-// route the next message from frontend to backend,
-// blocking and flushing if necessary
 func (s *simpleRouter) RouteFrontend() (err error) {
+	// route the next message from frontend to backend,
+	// blocking and flushing if necessary
 	err = s.fe.Next(&s.feBuf)
 	if err != nil {
 		return
@@ -214,9 +227,9 @@ func (s *simpleRouter) RouteFrontend() (err error) {
 	return
 }
 
-// route the next message from backend to frotnend,
-// blocking and flushing if necessary
 func (s *simpleRouter) RouteBackend() error {
+	// route the next message from backend to frotnend,
+	// blocking and flushing if necessary
 	err := s.be.Next(&s.beBuf)
 	if err != nil {
 		return err
@@ -241,6 +254,8 @@ type simpleSession struct {
 	Canceller
 }
 
+// Make a new Session that drives the given router and uses its
+// cancellation data to delegate cancellation requests.
 func NewSimpleSession(r Router, c Canceller) Session {
 	return &simpleSession{r, c}
 }
