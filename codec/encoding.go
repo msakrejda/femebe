@@ -81,7 +81,10 @@ func encodeValText(b *bytes.Buffer,
 // type (lifted from pq)
 func Decode(s []byte, typ proto.Oid) interface{} {
 	switch typ {
+	case proto.OidText, proto.OidVarchar:
+		return string(s)
 	case proto.OidBytea:
+		// N.B.: assumes hex bytea output
 		s = s[2:] // trim off "\\x"
 		d := make([]byte, hex.DecodedLen(len(s)))
 		_, err := hex.Decode(d, s)
@@ -149,6 +152,8 @@ func mustParse(f string, typ proto.Oid, s []byte) time.Time {
 // above
 func DescribeType(typ proto.Oid) string {
 	switch typ {
+	case proto.OidText, proto.OidVarchar:
+		return "string"
 	case proto.OidBytea:
 		return "[]byte"
 	case proto.OidTimestamp, proto.OidTimestamptz, proto.OidTime, proto.OidTimetz, proto.OidDate:
