@@ -40,7 +40,10 @@ FEMEBE can use help in a number of areas:
  * Bug reports, especially with minimal, reproducible test cases
  * Automated testing setup (e.g., via Travis CI)
  * Performance benchmarks and improvements
- * API improvements so we can confidently freeze the interface
+ * API improvements so we can confidently freeze the interface,
+   especially for:
+   * Composable (but still performant and simple) `Router`s
+   * Custom error types rather than blind propagation
  * Add server TLS support (TLS for the client piece exists)
  * Support parsing and formatting remaining message types
  * Utility functions for data type management
