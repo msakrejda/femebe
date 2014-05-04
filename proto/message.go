@@ -273,7 +273,7 @@ func ReadRowDescription(msg *Message) (
 	}
 
 	fields := make([]FieldDescription, fieldCount)
-	for i, _ := range fields {
+	for i := range fields {
 		name, err := ReadCString(b)
 		if err != nil {
 			return nil, err
@@ -392,8 +392,6 @@ func ReadCommandComplete(m *Message) (*CommandComplete, error) {
 	} else {
 		return &CommandComplete{fullTag, 0, 0}, nil
 	}
-
-	panic("Oh snap")
 }
 
 type ErrorResponse struct {

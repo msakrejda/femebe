@@ -173,8 +173,6 @@ func (c *MessageStream) Next(dst *Message) (err error) {
 	default:
 		panic("Oh snap")
 	}
-
-	panic("Oh snap")
 }
 
 func (c *MessageStream) Send(msg *Message) (err error) {

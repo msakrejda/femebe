@@ -48,7 +48,7 @@ func TestFullyBuffered(t *testing.T) {
 	// Read them back out
 	for i := 0; i < NUM_MSG; i += 1 {
 		if !ms.HasNext() {
-			t.Fatal()
+			t.Fail()
 		}
 
 		ms.Next(&m)
@@ -56,7 +56,7 @@ func TestFullyBuffered(t *testing.T) {
 
 	// The very last HasNext call must return false
 	if ms.HasNext() {
-		t.Fatal()
+		t.Fail()
 	}
 }
 
@@ -83,7 +83,7 @@ func TestPromise(t *testing.T) {
 
 	// 5 bytes is enough to have a next message.
 	if !ms.HasNext() {
-		t.Fatal()
+		t.Fail()
 	}
 
 	// Grab the message and check the contents of the payload.
@@ -93,14 +93,14 @@ func TestPromise(t *testing.T) {
 	io.Copy(checkBuf, m.Payload())
 
 	if !bytes.Equal(checkBuf.Bytes(), []byte{0x0, 0x0, 0x0, 0x0}) {
-		t.Fatal()
+		t.Fail()
 	}
 
 	// More attempts to read from that stream should result in EOF
 	for i := 0; i < 5; i += 1 {
 		err := ms.Next(&m)
 		if err != io.EOF {
-			t.Fatal()
+			t.Fail()
 		}
 	}
 }
@@ -125,7 +125,7 @@ func TestIncompleteMessage(t *testing.T) {
 	// Only four bytes are in the MessageStream's buffer, and
 	// that's not enough to form a Message without blocking.
 	if ms.HasNext() {
-		t.Fatal()
+		t.Fail()
 	}
 
 	// However, a-priori this test ensures there are enough bytes
@@ -137,14 +137,14 @@ func TestIncompleteMessage(t *testing.T) {
 	io.Copy(checkBuf, m.Payload())
 
 	if !bytes.Equal(checkBuf.Bytes(), []byte{0x0, 0x0, 0x0, 0x0}) {
-		t.Fatal()
+		t.Fail()
 	}
 
 	// More attempts to read from that stream should result in EOF
 	for i := 0; i < 5; i += 1 {
 		err := ms.Next(&m)
 		if err != io.EOF {
-			t.Fatal()
+			t.Fail()
 		}
 	}
 }

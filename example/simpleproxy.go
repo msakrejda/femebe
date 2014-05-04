@@ -62,9 +62,6 @@ func main() {
 
 		go p.handleConnection(conn, target)
 	}
-
-	fmt.Println("simpleproxy quits successfully")
-	return
 }
 
 type proxy struct {
