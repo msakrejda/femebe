@@ -41,5 +41,5 @@ func StartupFmt(format string, args ...interface{}) ErrStartupFmt {
 }
 
 func BadTypeCode(code byte) ErrBadTypeCode {
-	return ErrBadTypeCode{fmt.Errorf("Invalid message type %v")}
+	return ErrBadTypeCode{fmt.Errorf("Invalid message type %v", code)}
 }

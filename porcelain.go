@@ -4,10 +4,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/deafbybeheading/femebe/core"
 	"github.com/deafbybeheading/femebe/proto"
 	"github.com/deafbybeheading/femebe/util"
-	"sync"
 )
 
 // SessionManager is responsible for tracking all the currently

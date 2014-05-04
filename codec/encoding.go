@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"github.com/deafbybeheading/femebe/buf"
-	"github.com/deafbybeheading/femebe/proto"
 	"log"
 	"strconv"
 	"time"
+
+	"github.com/deafbybeheading/femebe/buf"
+	"github.com/deafbybeheading/femebe/proto"
 )
 
 func EncodeValue(buff *bytes.Buffer, val interface{}, format proto.EncFmt) (err error) {
@@ -29,10 +30,10 @@ func EncodeValue(buff *bytes.Buffer, val interface{}, format proto.EncFmt) (err 
 		case bool:
 			TextEncodeBool(buff, val.(bool))
 		default:
-			return fmt.Errorf("Can't encode value %#v of type %#T", val, val)
+			return fmt.Errorf("Can't encode value %#v of type %T", val, val)
 		}
 	} else {
-		return fmt.Errorf("Can't encode in format %v")
+		return fmt.Errorf("Can't encode in format %v", format)
 	}
 	return nil
 }

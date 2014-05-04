@@ -145,8 +145,6 @@ func ReadCString(r io.Reader) (s string, err error) {
 			accum.Write(charBuf)
 		}
 	}
-
-	panic("Oh snap")
 }
 
 // ReadByte reads a single byte from the io.Reader r. If an error is

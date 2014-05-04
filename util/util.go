@@ -90,8 +90,6 @@ func NegotiateTLS(c net.Conn, config *SSLConfig) (net.Conn, error) {
 		} else {
 			return c, nil
 		}
-
-		panic("Oh snap!")
 	}
 
 	return c, nil

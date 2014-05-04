@@ -17,7 +17,7 @@ func GuessOids(rows [][]interface{}) (oids []proto.Oid) {
 	oids = make([]proto.Oid, len(rows[0]))
 	for _, row := range rows {
 		gotAll := true
-		for i, _ := range oids {
+		for i := range oids {
 			if o := oids[i]; o == 0 || o == proto.OidUnknown {
 				oids[i] = MappedOid(row[i])
 				if oids[i] == proto.OidUnknown {
@@ -56,6 +56,4 @@ func MappedOid(val interface{}) proto.Oid {
 	default:
 		return proto.OidUnknown
 	}
-
-	panic("Oh snap!")
 }
