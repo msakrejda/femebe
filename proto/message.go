@@ -40,6 +40,18 @@ func IsStartupMessage(m *Message) bool {
 	return bytes.HasPrefix(result, []byte{0x00, 0x03, 0x00, 0x00})
 }
 
+func IsSSLRequest(m *Message) bool {
+	if m.MsgType() != MsgTypeFirst {
+		return false
+	}
+	// TODO: as above, check message size
+	result, err := m.Force()
+	if err != nil {
+		return false
+	}
+	return bytes.HasPrefix(result, []byte{0x04, 0xd2, 0x16, 0x2f})
+}
+
 type StartupMessage struct {
 	Params map[string]string
 }

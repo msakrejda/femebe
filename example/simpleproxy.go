@@ -121,6 +121,8 @@ func (p *proxy) handleConnection(conn net.Conn, serverAddr string) {
 		router := femebe.NewSimpleRouter(feStream, beStream)
 		session := femebe.NewSimpleSession(router, connector)
 		err = p.manager.RunSession(session)
+	} else if proto.IsSSLRequest(&m) {
+		log.Print("SSL not supported; try with PGSSLMODE=disable")
 	} else if proto.IsCancelRequest(&m) {
 		cancel, err := proto.ReadCancelRequest(&m)
 		if err != nil {
