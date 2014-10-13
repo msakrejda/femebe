@@ -3,8 +3,9 @@ package core
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/deafbybeheading/femebe/buf"
 	"io"
+
+	"github.com/deafbybeheading/femebe/buf"
 )
 
 var ErrTooLarge = errors.New("Message buffering size limit exceeded")

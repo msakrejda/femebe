@@ -1,8 +1,9 @@
 package core
 
 import (
-	"github.com/deafbybeheading/femebe/buf"
 	"testing"
+
+	"github.com/deafbybeheading/femebe/buf"
 )
 
 //Benchmark for testing how long the send operation on a MessageStream takes

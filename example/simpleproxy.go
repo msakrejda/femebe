@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
-	"github.com/deafbybeheading/femebe"
-	"github.com/deafbybeheading/femebe/core"
-	"github.com/deafbybeheading/femebe/proto"
-	"github.com/deafbybeheading/femebe/util"
 	"io"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+
+	"github.com/deafbybeheading/femebe"
+	"github.com/deafbybeheading/femebe/core"
+	"github.com/deafbybeheading/femebe/proto"
+	"github.com/deafbybeheading/femebe/util"
 )
 
 // Startup and main client acceptance loop
@@ -62,9 +63,6 @@ func main() {
 
 		go p.handleConnection(conn, target)
 	}
-
-	fmt.Println("simpleproxy quits successfully")
-	return
 }
 
 type proxy struct {

@@ -1,8 +1,9 @@
 package codec
 
 import (
-	"github.com/deafbybeheading/femebe/proto"
 	"testing"
+
+	"github.com/deafbybeheading/femebe/proto"
 )
 
 func TestGuessOids(t *testing.T) {
@@ -12,7 +13,7 @@ func TestGuessOids(t *testing.T) {
 			t.Errorf("Expected %v; got %v", expected, result)
 			return
 		}
-		for i, _ := range result {
+		for i := range result {
 			if result[i] != expected[i] {
 				t.Errorf("Expected %v; got %v", expected[i], result[i])
 				break

@@ -2,11 +2,12 @@ package proto
 
 import (
 	"bytes"
+	"io"
+	"testing"
+
 	"github.com/deafbybeheading/femebe/buf"
 	"github.com/deafbybeheading/femebe/core"
 	e "github.com/deafbybeheading/femebe/error"
-	"io"
-	"testing"
 )
 
 // A helper that initializes a message, writes it into and then then
@@ -41,7 +42,7 @@ func TestHugeStartup(t *testing.T) {
 
 	m, err := firstMessageRoundTrip(t, init)
 	if err != nil {
-		t.Fatal()
+		t.Fail()
 	}
 
 	_, err = ReadStartupMessage(m)
@@ -60,7 +61,7 @@ func TestSmallStartup(t *testing.T) {
 
 	m, err := firstMessageRoundTrip(t, init)
 	if err != nil {
-		t.Fatal()
+		t.Fail()
 	}
 
 	_, err = ReadStartupMessage(m)
@@ -90,7 +91,7 @@ func TestStartupSerDes(t *testing.T) {
 	serBytes, _ := m.Force()
 	deserBytes, _ := deserM.Force()
 	if !bytes.Equal(serBytes, deserBytes) {
-		t.Fatal()
+		t.Fail()
 	}
 }
 
@@ -106,15 +107,15 @@ func TestBackendKeyReading(t *testing.T) {
 
 	kd, err := ReadBackendKeyData(&m)
 	if err != nil {
-		t.Fatal()
+		t.Fail()
 	}
 
 	if kd.BackendPid != Pid {
-		t.Fatal()
+		t.Fail()
 	}
 
 	if kd.SecretKey != Key {
-		t.Fatal()
+		t.Fail()
 	}
 }
 

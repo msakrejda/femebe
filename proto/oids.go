@@ -24,8 +24,6 @@ func TypSize(typOid Oid) int16 {
 		// unknown, assume variable length
 		return -1
 	}
-
-	panic("Oh snap!")
 }
 
 type Oid uint32
