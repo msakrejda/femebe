@@ -3,7 +3,7 @@ package core
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/deafbybeheading/femebe/buf"
+	"github.com/uhoh-itsmaciek/femebe/buf"
 	"io"
 )
 

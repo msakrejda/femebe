@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/deafbybeheading/femebe/buf"
+	"github.com/uhoh-itsmaciek/femebe/buf"
 	"testing"
 )
 

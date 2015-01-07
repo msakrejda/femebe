@@ -2,8 +2,8 @@ package core
 
 import (
 	"bytes"
-	"github.com/deafbybeheading/femebe/buf"
-	"github.com/deafbybeheading/femebe/util"
+	"github.com/uhoh-itsmaciek/femebe/buf"
+	"github.com/uhoh-itsmaciek/femebe/util"
 	"io"
 )
 

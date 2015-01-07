@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/deafbybeheading/femebe"
-	"github.com/deafbybeheading/femebe/core"
-	"github.com/deafbybeheading/femebe/proto"
-	"github.com/deafbybeheading/femebe/util"
+	"github.com/uhoh-itsmaciek/femebe"
+	"github.com/uhoh-itsmaciek/femebe/core"
+	"github.com/uhoh-itsmaciek/femebe/proto"
+	"github.com/uhoh-itsmaciek/femebe/util"
 	"io"
 	"log"
 	"net"

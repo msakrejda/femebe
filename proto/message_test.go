@@ -2,9 +2,9 @@ package proto
 
 import (
 	"bytes"
-	"github.com/deafbybeheading/femebe/buf"
-	"github.com/deafbybeheading/femebe/core"
-	e "github.com/deafbybeheading/femebe/error"
+	"github.com/uhoh-itsmaciek/femebe/buf"
+	"github.com/uhoh-itsmaciek/femebe/core"
+	e "github.com/uhoh-itsmaciek/femebe/error"
 	"io"
 	"testing"
 )

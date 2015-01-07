@@ -1,7 +1,7 @@
 package codec
 
 import (
-	"github.com/deafbybeheading/femebe/proto"
+	"github.com/uhoh-itsmaciek/femebe/proto"
 )
 
 // GuessOids attemps to guess the Postgres oids for the given data
