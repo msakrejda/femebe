@@ -2,6 +2,8 @@ package core
 
 import (
 	"bytes"
+	"encoding/binary"
+	"fmt"
 	"github.com/uhoh-itsmaciek/femebe/buf"
 	"github.com/uhoh-itsmaciek/femebe/util"
 	"io"
@@ -27,6 +29,18 @@ type Stream interface {
 // in the buffer, the remaining bytes must be saved for the next
 // invocation of Next().
 const MsgHeaderMinSize = 5
+
+// The "request code" portion of a StartupMessage
+const startupMessageRequestCode uint32 = 196608
+
+// Sending RejectSSLRequest as a response to an SSLRequest tells the frontend
+// that SSL is not supported.  The frontend might close the connection if it is
+// dissatisfied with the response.
+const RejectSSLRequest = 'N'
+
+// AcceptSSLRequest accepts an SSLRequest from the frontend.  However, SSL is not
+// yet supported for frontend streams, so its usefulness is questionable.
+const AcceptSSLRequest = 'S'
 
 // State of the stream connection
 type ConnState int32
@@ -80,18 +94,48 @@ func (c *MessageStream) HasNext() bool {
 	return c.msgRemainder.Len() >= MsgHeaderMinSize
 }
 
+func (c *MessageStream) readStartupMessage(dst *Message) (err error) {
+	msgSz, err := buf.ReadUint32(c.rw)
+	if err != nil {
+		return err
+	}
+	if msgSz < 8 {
+		return fmt.Errorf("startup message size %u is invalid", msgSz)
+	}
+	requestCode := make([]byte, 4)
+	_, err = c.rw.Read(requestCode)
+	if err != nil {
+		return err
+	}
+
+	dst.InitPromise(MsgTypeFirst, msgSz, requestCode, c.rw)
+
+	// only a StartupMessage can bring the connection out of the startup sequence
+	if binary.BigEndian.Uint32(requestCode) == startupMessageRequestCode {
+		c.state = ConnNormal
+	}
+	return nil
+}
+
+// Send a response to an SSLRequest to the message stream.  See
+// RejectSSLRequest and AcceptSSLRequest.
+func (c *MessageStream) SendSSLRequestResponse(r byte) error {
+	if c.state != ConnStartup {
+		return fmt.Errorf("SendSSLRequestResponse called while the connection is not in the startup phase")
+	}
+	_, err := c.rw.Write([]byte{r})
+	return err
+}
+
 func (c *MessageStream) Next(dst *Message) (err error) {
 	switch c.state {
 	case ConnStartup:
-		msgSz, err := buf.ReadUint32(c.rw)
+		err := c.readStartupMessage(dst)
 		if err != nil {
 			c.err = err
 			c.state = ConnErr
 			return err
 		}
-
-		dst.InitPromise(MsgTypeFirst, msgSz, []byte{}, c.rw)
-		c.state = ConnNormal
 		return nil
 
 	case ConnNormal:
