@@ -38,7 +38,6 @@ There are five basic ways to use FEMEBE:
 FEMEBE can use help in a number of areas:
 
  * Bug reports, especially with minimal, reproducible test cases
- * Automated testing setup (e.g., via Travis CI)
  * Performance benchmarks and improvements
  * API improvements so we can confidently freeze the interface,
    especially for:
