@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/uhoh-itsmaciek/femebe/buf"
 	"io"
+	"io/ioutil"
 )
 
 var ErrTooLarge = errors.New("Message buffering size limit exceeded")
@@ -37,6 +38,15 @@ func (m *Message) Size() uint32 {
 
 func (m *Message) IsBuffered() bool {
 	return m.future == nil
+}
+
+func (m *Message) Discard() error {
+	if m.IsBuffered() {
+		return nil
+	}
+	_, err := io.Copy(ioutil.Discard, m.future)
+	m.future = nil
+	return err
 }
 
 func (m *Message) Force() ([]byte, error) {
