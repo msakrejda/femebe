@@ -100,7 +100,7 @@ func (c *MessageStream) readStartupMessage(dst *Message) (err error) {
 		return err
 	}
 	if msgSz < 8 {
-		return fmt.Errorf("startup message size %u is invalid", msgSz)
+		return fmt.Errorf("startup message size %d is invalid", msgSz)
 	}
 	requestCode := make([]byte, 4)
 	_, err = c.rw.Read(requestCode)
