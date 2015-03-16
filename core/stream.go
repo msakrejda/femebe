@@ -2,11 +2,13 @@ package core
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"github.com/uhoh-itsmaciek/femebe/buf"
 	"github.com/uhoh-itsmaciek/femebe/util"
 	"io"
+	"net"
 )
 
 // A duplex stream of FEBE messages
@@ -38,9 +40,11 @@ const startupMessageRequestCode uint32 = 196608
 // dissatisfied with the response.
 const RejectSSLRequest = 'N'
 
-// AcceptSSLRequest accepts an SSLRequest from the frontend.  However, SSL is not
-// yet supported for frontend streams, so its usefulness is questionable.
+// AcceptSSLRequest accepts an SSLRequest from the frontend.  See also
+// FrontendStream.AcceptSSL.
 const AcceptSSLRequest = 'S'
+
+type ConnectionUpgradeFunc func (st io.ReadWriteCloser) (io.ReadWriteCloser, error)
 
 // State of the stream connection
 type ConnState int32
@@ -230,6 +234,40 @@ func (c *MessageStream) Flush() error {
 	}
 
 	return nil
+}
+
+// Accept an SSLRequest and negotiate SSL using tlsConfig.
+func (c *MessageStream) AcceptSSL(tlsConfig *tls.Config) (connState tls.ConnectionState, err error) {
+	_, ok := c.rw.(net.Conn)
+	if !ok {
+		// Use our own fake wrapper if the provided ReadWriter doesn't
+		// implement net.Conn
+		c.rw = util.NewFakeNetConn(c.rw)
+	}
+
+	err = c.SendSSLRequestResponse(AcceptSSLRequest)
+	if err != nil {
+		return connState, err
+	}
+
+	upgradeFunc := func (st io.ReadWriteCloser) (io.ReadWriteCloser, error) {
+		nc := st.(net.Conn)
+		uc := tls.Server(nc, tlsConfig)
+		err := uc.Handshake()
+		if err != nil {
+			return st, err
+		}
+		connState = uc.ConnectionState()
+		return uc, nil
+	}
+	err = c.UpgradeConnection(upgradeFunc)
+	return connState, err
+}
+
+func (c *MessageStream) UpgradeConnection(up ConnectionUpgradeFunc) error {
+	var err error
+	c.rw, err = up(c.rw)
+	return err
 }
 
 func (c *MessageStream) Close() error {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 )
 
 // Call fn repeatedly until an error is returned; then send the error
@@ -93,4 +94,54 @@ func NegotiateTLS(c net.Conn, config *SSLConfig) (net.Conn, error) {
 	}
 
 	return c, nil
+}
+
+// A fake net.Conn wrapper around an io.ReadWriteCloser (and optionally a Flusher)
+type fakeNetConn struct {
+	rw io.ReadWriteCloser
+}
+
+type fakeNetConnAddr struct{}
+func (fakeNetConnAddr) Network() string {
+	return "fake net.Conn"
+}
+func (fakeNetConnAddr) String() string {
+	return "fake net.Conn"
+}
+
+func NewFakeNetConn(rw io.ReadWriteCloser) net.Conn {
+	return &fakeNetConn{rw}
+}
+
+func (c *fakeNetConn) Close() error {
+	return c.rw.Close()
+}
+func (c *fakeNetConn) LocalAddr() net.Addr {
+	return fakeNetConnAddr{}
+}
+func (c *fakeNetConn) RemoteAddr() net.Addr {
+	return fakeNetConnAddr{}
+}
+func (c *fakeNetConn) Read(p []byte) (n int, err error) {
+	return c.Read(p)
+}
+func (c *fakeNetConn) Write(p []byte) (n int, err error) {
+	return c.Write(p)
+}
+func (c *fakeNetConn) SetDeadline(t time.Time) error {
+	return errors.New("fakeNetConn does not support deadlines")
+}
+func (c *fakeNetConn) SetReadDeadline(t time.Time) error {
+	return errors.New("fakeNetConn does not support deadlines")
+}
+func (c *fakeNetConn) SetWriteDeadline(t time.Time) error {
+	return errors.New("fakeNetConn does not support deadlines")
+}
+
+func (c *fakeNetConn) Flush() error {
+	if flushable, ok := c.rw.(Flusher); ok {
+		return flushable.Flush()
+	}
+
+	return nil
 }
