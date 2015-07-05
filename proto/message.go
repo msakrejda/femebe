@@ -589,6 +589,7 @@ const (
 	MsgFlushH                                = 'H'
 	MsgFunctionCallF                         = 'F'
 	MsgFunctionCallResponseV                 = 'V'
+	MsgHotStandbyFeedbackH                   = 'h'
 	MsgNoDataN                               = 'n'
 	MsgNoticeResponseN                       = 'N'
 	MsgNotificationResponseA                 = 'A'
@@ -598,6 +599,7 @@ const (
 	MsgParseComplete1                        = '1'
 	MsgPasswordMessageP                      = 'p'
 	MsgPortalSuspendedS                      = 's'
+	MsgPrimaryKeepaliveK                     = 'k'
 	MsgQueryQ                                = 'Q'
 	MsgReadyForQueryZ                        = 'Z'
 	MsgRowDescriptionT                       = 'T'
@@ -606,6 +608,8 @@ const (
 	// a protocol negotiation mechanic rather than a first-class
 	// message, so it does not appear here
 
-	MsgSyncS      = 'S'
-	MsgTerminateX = 'X'
+	MsgStandbyStatusUpdateR = 'r'
+	MsgSyncS                = 'S'
+	MsgTerminateX           = 'X'
+	MsgXLogDataW            = 'w'
 )
